@@ -28,7 +28,7 @@ import scipy.ndimage
 class CBF(QWidget):
     def __init__(self):
         super().__init__()
-        self.title = 'CBF Viewer 0.1'
+        self.title = 'CBF Viewer 0.2'
         self.Images = []
         # self.ImageData=np.zeros((1,1,1))
         # self.Images = '/'
@@ -81,29 +81,14 @@ class CBF(QWidget):
 
         if len(self.Images) == 0:
             return 0
-        folderSlice = self.p.param('Actions', 'Slicing').value()
         try:
-            start = folderSlice.split(':')[0]
-            if start == '':
-                start = 0
-            else:
-                start = int(start)
-            end = folderSlice.split(':')[1]
-            if end == '':
-                end = None
-            else:
-                end = int(end)
-            self.steps = folderSlice.split(':')[2]
-            if self.steps == '':
-                self.steps = 1
-            else:
-                self.steps = int(self.steps)
+            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
         except ValueError:
-            start = 0
-            end = None
+            print('Slicing was not understood!')
+        try:
+            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
+        except ValueError:
             self.steps = 1
-        print(start, end, self.steps)
-        self.Images = self.Images[start:end:self.steps]
         # assert self._checkSize(self.Images, maxOccupation=.8), 'Memory exceeded'
         self.progressBar.setMaximum(len(self.Images))
         self.progressBar.show()
@@ -117,10 +102,10 @@ class CBF(QWidget):
             self.update()
             self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
         self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        print(self.ImageData.shape[0])
+        #print(self.ImageData.shape[0])
         self.progressBar.hide()
         self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds([0, len(self.Images)])
+        self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
 
     def loadFolderWithDark(self):
@@ -134,29 +119,14 @@ class CBF(QWidget):
 
         if len(self.Images) == 0:
             return 0
-        folderSlice = self.p.param('Actions', 'Slicing').value()
         try:
-            start = folderSlice.split(':')[0]
-            if start == '':
-                start = 0
-            else:
-                start = int(start)
-            end = folderSlice.split(':')[1]
-            if end == '':
-                end = None
-            else:
-                end = int(end)
-            self.steps = folderSlice.split(':')[2]
-            if self.steps == '':
-                self.steps = 1
-            else:
-                self.steps = int(self.steps)
+            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
         except ValueError:
-            start = 0
-            end = None
+            print('Slicing was not understood!')
+        try:
+            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
+        except ValueError:
             self.steps = 1
-        print(start, end, self.steps)
-        self.Images = self.Images[start:end:self.steps]
         # assert self._checkSize(self.Images, maxOccupation=.8), 'Memory exceeded'
         self.progressBar.setMaximum(len(self.Images))
         self.progressBar.show()
@@ -173,10 +143,10 @@ class CBF(QWidget):
             else:
                 self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
         self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        print(self.ImageData.shape[0])
+        #print(self.ImageData.shape[0])
         self.progressBar.hide()
         self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds([0, len(self.Images)])
+        self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
 
     def loadFolderTif(self):
@@ -184,30 +154,14 @@ class CBF(QWidget):
         self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
         if len(self.Images) == 0:
             return 0
-        folderSlice = self.p.param('Actions', 'Slicing').value()
-        # print(folderSlice)
         try:
-            start = folderSlice.split(':')[0]
-            if start == '':
-                start = 0
-            else:
-                start = int(start)
-            end = folderSlice.split(':')[1]
-            if end == '':
-                end = None
-            else:
-                end = int(end)
-            self.steps = folderSlice.split(':')[2]
-            if self.steps == '':
-                self.steps = 1
-            else:
-                self.steps = int(self.steps)
+            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
         except ValueError:
-            start = 0
-            end = None
+            print('Slicing was not understood!')
+        try:
+            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
+        except ValueError:
             self.steps = 1
-        # print(start, end, self.steps)
-        self.Images = self.Images[start:end:self.steps]
         assert self._checkSize(self.Images, maxOccupation=.8), 'Memory exceeded'
         self.progressBar.setMaximum(len(self.Images))
         self.progressBar.show()
@@ -221,10 +175,10 @@ class CBF(QWidget):
             self.update()
             self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
         self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        print(self.ImageData.shape[0])
+        #print(self.ImageData.shape[0])
         self.progressBar.hide()
         self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds([0, len(self.Images)])
+        self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
 
 
@@ -286,8 +240,8 @@ class CBF(QWidget):
         self.p.param('Actions', 'Load Folder').sigActivated.connect(self.loadFolder)
         self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
         self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
-        self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.prepImages)
-        self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.maskValsAbove)
+        self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
+        self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
         self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
@@ -314,37 +268,7 @@ class CBF(QWidget):
         self.statusLabel = QLabel('Status')
         gridLayout.addWidget(self.statusLabel, 1, 1, 1, 2)
 
-        '''
-        def updateRegion():
-            # if self.ImgState==2:
-            #    self.hist.setImageItem(self.imgLeft)
-            # self.ImgState=0
-            self.imgLeft.show()
-            self.imageRegion.setBounds = ([0, self.ImageData.shape[0]])
-            # self.qRegion.show()
-            self.imgLeft.resetTransform()
-            self.p3.getAxis('bottom').setScale(None)
-            self.p3.getAxis('left').setScale(None)
-            self.p3.getAxis('bottom').setGrid(0)
-            self.p3.getAxis('left').setGrid(0)
 
-            fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
-            toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
-            self.currentImage = (fromImage, toImage)
-            if self.currentImage[0] == self.currentImage[1]-1:
-                self.p3.setTitle("%s" % self.Images[self.currentImage[0]].rpartition('/')[2])
-                # self.p3.setTitle("Image %i" % (self.currentImage[0]*self.binning))
-            else:
-                self.p3.setTitle("Mean of images: %i:%i" % (self.currentImage[0]*self.steps, self.currentImage[1]*self.steps))
-
-            if len(self.ImageData[fromImage:toImage, :, :]) > 0:
-                self.showData = np.mean(self.ImageData[fromImage:toImage, :, :], axis=0)
-                self.imgLeft.setImage(self.showData, autoLevels=False)
-            else:
-                self.showData = self.ImageData[0]
-            # set the iso show to False because it can not update fast live, and that code part is also missing from here
-            self.p.param('Iso Line', 'show').setValue(False)
-        '''
 
         self.win.nextRow()
         self.p2 = self.win.addPlot(row=3, colspan=3)
@@ -419,10 +343,12 @@ class CBF(QWidget):
 
     def prepImages(self):
         '''
-        Transform images:
+        Transform images (works on the whole 3d image stack, where the 1st axis is the image no):
             geometric
-            internal and/or external (from mask file) masking
+        This transforms all images, which does not make sense at all!!!
         '''
+
+        print('prepImages called')
         # first transform the images back to the original state
         if self.trOrient == None:
             pass
@@ -448,7 +374,7 @@ class CBF(QWidget):
             self.ImageData = np.rot90(self.ImageData, k=2, axes=(2,1)).transpose(0,2,1)
             self.trOrient = None
 
-        # now transfor to the desired state
+        # now transform to the desired state
         if self.p.param('Data Processing', 'iOrient').value() == 'flipUD':
             self.ImageData = self.ImageData[:, ::-1, :]
             self.trOrient = 'flipUD'
@@ -472,21 +398,44 @@ class CBF(QWidget):
             self.trOrient = 'rot180 + tr'
         self.updateRegion()
 
-    def maskValsAbove(self):
+    def prepFinalImage(self, img):
         '''
-        This is non-reversible at the moment.
+        Transform 2d array
         '''
-        # if int(self.p.param('Data Processing', 'maskValsAbove').value()) > 0:
-        #     self.ImageData[self.ImageData > int(self.p.param('Data Processing', 'maskValsAbove').value())] = 0
-        self.updateRegion()
+        if self.p.param('Data Processing', 'iOrient').value() == 'flipUD':
+            img = np.flipud(img)
+        elif self.p.param('Data Processing', 'iOrient').value() == 'flipLR':
+            img = np.fliplr(img)
+        elif self.p.param('Data Processing', 'iOrient').value() == 'rot90':
+            img = np.rot90(img, k=1)
+        elif self.p.param('Data Processing', 'iOrient').value() == 'rot180':
+            img = np.rot90(img, k=2)
+        elif self.p.param('Data Processing', 'iOrient').value() == 'rot270':
+            img = np.rot90(img, k=3)
+        elif self.p.param('Data Processing', 'iOrient').value() == 'transpose':
+            img = np.transpose(img)
+        elif self.p.param('Data Processing', 'iOrient').value() == 'rot180 + tr':
+            img = np.rot90(np.transpose(img), k=2)
+            #self.trOrient = 'rot180 + tr'
+        return img
 
-    def filterImages(self):
+
+    def maskValsAbove(self, img):
+        if int(self.p.param('Data Processing', 'maskValsAbove').value()) > 0:
+            img[img > int(self.p.param('Data Processing', 'maskValsAbove').value())] = 0
+        return img
+
+    def filterImages(self, ims):
         '''
         max or average filtering of an image range 
         so far it is done in the self.updateRegion function
+        ims is the array of images to filter
         '''
-        pass
-
+        if self.currentFilter == 'average':
+            filteredData = np.mean(ims, axis=0)
+        elif self.currentFilter == 'max':
+            filteredData = np.maximum.reduce(ims, axis=0)
+        return filteredData
 
     def showROI(self):
 
@@ -567,13 +516,20 @@ class CBF(QWidget):
                 self.LabelL.setText("Max of images: %i:%i" % (self.currentImage[0]*self.steps, self.currentImage[1]*self.steps))
 
         if len(self.ImageData[fromImage:toImage, :, :]) > 0:
-            if self.currentFilter == 'average':
-                self.showData = np.mean(self.ImageData[fromImage:toImage, :, :], axis=0)
-            elif self.currentFilter == 'max':
-                self.showData = np.maximum.reduce(self.ImageData[fromImage:toImage, :, :], axis=0)
+            self.showData = self.filterImages(self.ImageData[fromImage:toImage, :, :])
+
+            #if self.currentFilter == 'average':
+            #    self.showData = np.mean(self.ImageData[fromImage:toImage, :, :], axis=0)
+            #elif self.currentFilter == 'max':
+            #    self.showData = np.maximum.reduce(self.ImageData[fromImage:toImage, :, :], axis=0)
             # this needs to be done here at the moment, because only the shown image should be masked, so that it is reversible
-            if int(self.p.param('Data Processing', 'maskValsAbove').value()) > 0:
-                self.showData[self.showData > int(self.p.param('Data Processing', 'maskValsAbove').value())] = 0
+
+            self.showData = self.maskValsAbove(self.showData)
+            #if int(self.p.param('Data Processing', 'maskValsAbove').value()) > 0:
+            #    self.showData[self.showData > int(self.p.param('Data Processing', 'maskValsAbove').value())] = 0
+
+            self.showData = self.prepFinalImage(self.showData)
+
 
             if self.autoColorscale:
                 self.imgLeft.setImage(self.showData, autoLevels=True)
