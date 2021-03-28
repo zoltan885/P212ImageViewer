@@ -285,7 +285,7 @@ class CBF(QWidget):
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
         #self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
         self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.updateTree)
-        self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.showROI)
+        #self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.showROI)
         self.p.param('Data Processing', 'nROI').sigValueChanged.connect(self.showROI)
         self.p.param('Appearence', 'light_bg').sigValueChanged.connect(toggleBg)
         # self.p.param('Data Processing', 'subtract_dark').sigValueChanged.connect(subtractDark)
@@ -485,19 +485,19 @@ class CBF(QWidget):
 
     def showROI(self):
 
-        self.roiColors = ((0, 9), (0, 7))  # for several ROIs eventually
-
+        self.roiColors = ((0, 9), (0, 7), (0, 5), (0, 3))  # for several ROIs eventually
+        rois = len(self.ROI) # number of currently requested rois
         if self.p.param('Data Processing', 'Line plots').value() != '' and self.p.param('Data Processing', 'nROI').value() > 0:
             #self.win.nextRow()
-            if self.roiPlotActive is False:
+            if self.roiPlotActive is False: # plot is switched on
                 self.roiPlot = self.win.addPlot(row=4, col=0, colspan=3)
                 self.roiPlot.showGrid(x=True, y=True, alpha=.8)
                 self.roiPlot.setMaximumHeight(150)
                 self.win.show()
                 self.show()
                 self.roiPlotActive = True
+                rois = 0
 
-            rois = len(self.ROI) # number of currently available rois
             if self.p.param('Data Processing', 'nROI').value() > rois:
                 self.ROI.append(pg.ROI([100, 200], [200, 1], pen=self.roiColors[rois]))
                 self.ROI[rois].addScaleHandle([0.5, 1], [0.5, 0.5])
@@ -511,24 +511,25 @@ class CBF(QWidget):
             else:
                 self.p3.removeItem(self.ROI[-1])
                 del(self.ROI[-1])
-
         else:
             for r in self.ROI:
                 self.p3.removeItem(r)
             self.ROI = []
-            self.roiPlot.hide()
+            try:
+                self.roiPlot.hide()
+            except Exception:
+                pass
             self.win.show()
             self.show()
             self.roiPlotActive = False
 
         # this is to show the mouse values
-
         self.roiPlot.hoverEvent = self.ROIHoverEvent
 
     def ROIchanged(self):
-        for roi in self.ROI:
+        for i,roi in enumerate(self.ROI):
             roiarea = roi.getArrayRegion(self.showData, self.imgLeft)
-            self.roiPlot.plot(roiarea.mean(axis=0), clear=True, pen=self.roiColors[0])
+            self.roiPlot.plot(roiarea.mean(axis=0), clear=True, pen=self.roiColors[i])
 
     def changeAutocolorscale(self):
         self.autoColorscale = self.p.param('Data Processing', 'autoColorscale').value()
