@@ -35,8 +35,9 @@ class CBF(QWidget):
         self.currentImage = 0
         self.currentFilter = 'average'
         self.autoColorscale = False
-        self.ROI = None
-        self.trOrient = None
+        self.ROI = []
+        self.roiPlotActive = False
+        self.knownFileTypes = ['tif', 'cbf']
         pg.setConfigOptions(imageAxisOrder='row-major')
         self.initUI()
 
@@ -107,6 +108,40 @@ class CBF(QWidget):
         self.imageRegion.setRegion((0, 1))
         self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
+
+    def loadFolderMapped(self):
+        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", "/gpfs/current/raw/", QFileDialog.ShowDirsOnly)
+        self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
+        if len(self.Images) == 0:
+            return 0
+        try:
+            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
+        except ValueError:
+            print('Slicing was not understood!')
+        try:
+            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
+        except ValueError:
+            self.steps = 1
+
+        self.progressBar.setMaximum(len(self.Images))
+        self.progressBar.show()
+        SizeDummy = fabio.open(self.Images[0]).data
+        xSize, ySize = SizeDummy.shape[0], SizeDummy.shape[1]
+
+        self.ImageData = np.memmap('/tmp/memmap.npy', dtype='float32', mode='w+', shape=(len(self.Images), xSize, ySize))
+        for i, filename in enumerate(self.Images):
+            self.progressBar.setValue(i+1)
+            self.update()
+            self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
+        self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
+        #print(self.ImageData.shape[0])
+        self.progressBar.hide()
+        self.imageRegion.setRegion((0, 1))
+        self.imageRegion.setBounds((0, len(self.Images)))
+        self.updateRegion()
+
+
+
 
     def loadFolderWithDark(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", "/gpfs/current/raw/", QFileDialog.ShowDirsOnly)
@@ -202,6 +237,7 @@ class CBF(QWidget):
             {'name': 'Actions', 'type': 'group', 'children': [
                 {'name': 'Load Image', 'type': 'action'},
                 {'name': 'Load Folder', 'type': 'action'},
+                {'name': 'Load Folder Mem', 'type': 'action'},
                 {'name': 'Load Folder WD', 'type': 'action'},
                 {'name': 'Load Folder tif', 'type': 'action'},
                 {'name': 'Slicing', 'type': 'str', 'value': '0:None:1', 'step': 1},
@@ -215,6 +251,8 @@ class CBF(QWidget):
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
                 {'name': 'autoColorscale', 'type': 'bool', 'value': False},
                 {'name': 'roi', 'type': 'bool', 'value': False},
+                {'name': 'Line plots', 'type': 'list', 'values': ['', 'line cut', 'ROI']},
+                {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (0, 4), 'visible': False},
                 # {'name': 'subtract_dark', 'type': 'bool', 'value': False},
             ]},
             {'name': 'Iso Line', 'type': 'group', 'children': [
@@ -238,13 +276,17 @@ class CBF(QWidget):
         self.p = Parameter.create(name='params', type='group', children=params)
         self.p.param('Actions', 'Load Image').sigActivated.connect(self.loadImage)
         self.p.param('Actions', 'Load Folder').sigActivated.connect(self.loadFolder)
+        self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
         self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
         self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
         self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
-        self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
+        #self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
+        self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.updateTree)
+        self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.showROI)
+        self.p.param('Data Processing', 'nROI').sigValueChanged.connect(self.showROI)
         self.p.param('Appearence', 'light_bg').sigValueChanged.connect(toggleBg)
         # self.p.param('Data Processing', 'subtract_dark').sigValueChanged.connect(subtractDark)
         # self.p.param('Iso Line', 'iso').sigValueChanged.connect(self.updateRegion)
@@ -289,6 +331,8 @@ class CBF(QWidget):
         self.iso.setZValue(self.p.param('Iso Line', 'iso').value())
         self.p.param('Iso Line', 'iso').hide()
 
+        #self.p.param('Data Processing', 'nROI').hide()
+
         # self.p4 = win.addPlot(row=2, col=0)
         # self.p4.hide()
 
@@ -297,7 +341,7 @@ class CBF(QWidget):
 
         self.hist = pg.HistogramLUTItem()
         self.hist.setImageItem(self.imgLeft)
-        #self.hist.setMaximumWidth(150)
+        # self.hist.setMaximumWidth(150)
         self.win.addItem(self.hist, row=0, col=2)
         self.imgLeft.hoverEvent = self.imageHoverEvent
 
@@ -346,11 +390,13 @@ class CBF(QWidget):
         Transform images (works on the whole 3d image stack, where the 1st axis is the image no):
             geometric
         This transforms all images, which does not make sense at all!!!
+        some source material:
+            https://stackoverflow.com/questions/41309201/efficient-transformations-of-3d-numpy-arrays
         '''
 
         print('prepImages called')
         # first transform the images back to the original state
-        if self.trOrient == None:
+        if self.trOrient is None:
             pass
         elif self.trOrient == 'flipUD':
             self.ImageData = self.ImageData[:, ::-1, :]
@@ -359,19 +405,19 @@ class CBF(QWidget):
             self.ImageData = self.ImageData[:, :, ::-1]
             self.trOrient = None
         elif self.trOrient == 'rot90':
-            self.ImageData = np.rot90(self.ImageData, k=1, axes=(2,1))
+            self.ImageData = np.rot90(self.ImageData, k=1, axes=(2, 1))
             self.trOrient = None
         elif self.trOrient == 'rot180':
-            self.ImageData = np.rot90(self.ImageData, k=2, axes=(2,1))
+            self.ImageData = np.rot90(self.ImageData, k=2, axes=(2, 1))
             self.trOrient = None
         elif self.trOrient == 'rot270':
-            self.ImageData = np.rot90(self.ImageData, k=3, axes=(2,1))
+            self.ImageData = np.rot90(self.ImageData, k=3, axes=(2, 1))
             self.trOrient = None
         elif self.trOrient == 'transpose':
-            self.ImageData = self.ImageData.transpose(0,2,1)
+            self.ImageData = self.ImageData.transpose(0, 2, 1)
             self.trOrient = None
         elif self.trOrient == 'rot180 + tr':
-            self.ImageData = np.rot90(self.ImageData, k=2, axes=(2,1)).transpose(0,2,1)
+            self.ImageData = np.rot90(self.ImageData, k=2, axes=(2, 1)).transpose(0, 2, 1)
             self.trOrient = None
 
         # now transform to the desired state
@@ -382,19 +428,19 @@ class CBF(QWidget):
             self.ImageData = self.ImageData[:, :, ::-1]
             self.trOrient = 'flipLR'
         elif self.p.param('Data Processing', 'iOrient').value() == 'rot90':
-            self.ImageData = np.rot90(self.ImageData, k=1, axes=(1,2))
+            self.ImageData = np.rot90(self.ImageData, k=1, axes=(1, 2))
             self.trOrient = 'rot90'
         elif self.p.param('Data Processing', 'iOrient').value() == 'rot180':
-            self.ImageData = np.rot90(self.ImageData, k=2, axes=(1,2))
+            self.ImageData = np.rot90(self.ImageData, k=2, axes=(1, 2))
             self.trOrient = 'rot180'
         elif self.p.param('Data Processing', 'iOrient').value() == 'rot270':
-            self.ImageData = np.rot90(self.ImageData, k=3, axes=(1,2))
+            self.ImageData = np.rot90(self.ImageData, k=3, axes=(1, 2))
             self.trOrient = 'rot270'
         elif self.p.param('Data Processing', 'iOrient').value() == 'transpose':
-            self.ImageData = self.ImageData.transpose(0,2,1)
+            self.ImageData = self.ImageData.transpose(0, 2, 1)
             self.trOrient = 'transpose'
         elif self.p.param('Data Processing', 'iOrient').value() == 'rot180 + tr':
-            self.ImageData = np.rot90(self.ImageData.transpose(0,2,1), k=2, axes=(1,2))
+            self.ImageData = np.rot90(self.ImageData.transpose(0, 2, 1), k=2, axes=(1, 2))
             self.trOrient = 'rot180 + tr'
         self.updateRegion()
 
@@ -416,7 +462,7 @@ class CBF(QWidget):
             img = np.transpose(img)
         elif self.p.param('Data Processing', 'iOrient').value() == 'rot180 + tr':
             img = np.rot90(np.transpose(img), k=2)
-            #self.trOrient = 'rot180 + tr'
+            # self.trOrient = 'rot180 + tr'
         return img
 
 
@@ -441,40 +487,48 @@ class CBF(QWidget):
 
         self.roiColors = ((0, 9), (0, 7))  # for several ROIs eventually
 
-        if self.p.param('Data Processing', 'roi').value() is True:
+        if self.p.param('Data Processing', 'Line plots').value() != '' and self.p.param('Data Processing', 'nROI').value() > 0:
             #self.win.nextRow()
-            self.roiPlot = self.win.addPlot(row=4, col=0, colspan=3)
-            self.roiPlot.showGrid(x=True, y=True, alpha=.8)
-            self.roiPlot.setMaximumHeight(150)
-            self.win.show()
-            self.show()
+            if self.roiPlotActive is False:
+                self.roiPlot = self.win.addPlot(row=4, col=0, colspan=3)
+                self.roiPlot.showGrid(x=True, y=True, alpha=.8)
+                self.roiPlot.setMaximumHeight(150)
+                self.win.show()
+                self.show()
+                self.roiPlotActive = True
 
-            self.ROI = pg.ROI([100, 200], [200, 1], pen=self.roiColors[0])
-            self.ROI.addScaleHandle([0.5, 1], [0.5, 0.5])
-            self.ROI.addScaleRotateHandle([1, 0.5], [0, 0.5])
-            self.ROI.addScaleRotateHandle([0, 0.5], [1, 0.5])
-
-            self.p3.addItem(self.ROI)
-
-            self.ROI.setZValue(10)  # make sure ROI is drawn above image
-            self.ROI.sigRegionChanged.connect(self.ROIchanged)
-            self.ROIchanged()
+            rois = len(self.ROI) # number of currently available rois
+            if self.p.param('Data Processing', 'nROI').value() > rois:
+                self.ROI.append(pg.ROI([100, 200], [200, 1], pen=self.roiColors[rois]))
+                self.ROI[rois].addScaleHandle([0.5, 1], [0.5, 0.5])
+                self.ROI[rois].addScaleRotateHandle([1, 0.5], [0, 0.5])
+                self.ROI[rois].addScaleRotateHandle([0, 0.5], [1, 0.5])
+                self.p3.addItem(self.ROI[rois])
+    
+                self.ROI[rois].setZValue(10)  # make sure ROI is drawn above image
+                self.ROI[rois].sigRegionChanged.connect(self.ROIchanged)
+                self.ROIchanged()
+            else:
+                self.p3.removeItem(self.ROI[-1])
+                del(self.ROI[-1])
 
         else:
-            self.p3.removeItem(self.ROI)
-            self.ROI = None
+            for r in self.ROI:
+                self.p3.removeItem(r)
+            self.ROI = []
             self.roiPlot.hide()
             self.win.show()
             self.show()
+            self.roiPlotActive = False
 
         # this is to show the mouse values
 
         self.roiPlot.hoverEvent = self.ROIHoverEvent
 
     def ROIchanged(self):
-        roiarea = self.ROI.getArrayRegion(self.showData, self.imgLeft)
-        self.roiPlot.plot(roiarea.mean(axis=0), clear=True, pen=self.roiColors[0])
-
+        for roi in self.ROI:
+            roiarea = roi.getArrayRegion(self.showData, self.imgLeft)
+            self.roiPlot.plot(roiarea.mean(axis=0), clear=True, pen=self.roiColors[0])
 
     def changeAutocolorscale(self):
         self.autoColorscale = self.p.param('Data Processing', 'autoColorscale').value()
@@ -489,6 +543,12 @@ class CBF(QWidget):
             self.p.param('Iso Line', 'iso').show()
         else:
             self.p.param('Iso Line', 'iso').hide()
+        if self.p.param('Data Processing', 'Line plots').value() == '':
+            self.p.param('Data Processing', 'nROI').hide()
+            self.p.param('Data Processing', 'nROI').setValue(1)
+        else:
+            self.p.param('Data Processing', 'nROI').show()
+            self.showROI()
         self.updateRegion()
 
     def updateRegion(self):
@@ -517,19 +577,11 @@ class CBF(QWidget):
 
         if len(self.ImageData[fromImage:toImage, :, :]) > 0:
             self.showData = self.filterImages(self.ImageData[fromImage:toImage, :, :])
-
-            #if self.currentFilter == 'average':
-            #    self.showData = np.mean(self.ImageData[fromImage:toImage, :, :], axis=0)
-            #elif self.currentFilter == 'max':
-            #    self.showData = np.maximum.reduce(self.ImageData[fromImage:toImage, :, :], axis=0)
-            # this needs to be done here at the moment, because only the shown image should be masked, so that it is reversible
-
             self.showData = self.maskValsAbove(self.showData)
             #if int(self.p.param('Data Processing', 'maskValsAbove').value()) > 0:
             #    self.showData[self.showData > int(self.p.param('Data Processing', 'maskValsAbove').value())] = 0
 
             self.showData = self.prepFinalImage(self.showData)
-
 
             if self.autoColorscale:
                 self.imgLeft.setImage(self.showData, autoLevels=True)
