@@ -26,7 +26,7 @@ import scipy.ndimage
 
 
 class CBF(QWidget):
-    def __init__(self):
+    def __init__(self, *args):
         super().__init__()
         self.title = 'CBF Viewer 0.2'
         self.Images = []
@@ -35,11 +35,24 @@ class CBF(QWidget):
         self.currentImage = 0
         self.currentFilter = 'average'
         self.autoColorscale = False
-        self.ROI = []
-        self.roiPlotActive = False
         self.knownFileTypes = ['tif', 'cbf']
+
+        self.LinePlotActive = False
+        self.roiColors = ("FF0000", (2, 9), (5, 9), (7, 9))  # for several ROIs eventually
+        self.ROIs = []  # visualization
+        self.ROIArea = []  # area used to calculate
+        self.ROICurves = []  # 1D curve
+        self.lineCuts = []
+        self.lineCutsArea = []
+        self.lineCutsCurves = []
+
         pg.setConfigOptions(imageAxisOrder='row-major')
         self.initUI()
+        #if len(args[0]) > 1:
+        #    if args[0][1] == '-D':
+        #        DEB = True
+        #if DEB:
+        #    self.loadFolder(folder='/home/zoltan/Documents/code_snippets/multisource/1')
 
     def _checkSize(self, filelist, maxOccupation=0.8):
         size = np.sum([os.path.getsize(f) for f in filelist])
@@ -79,7 +92,6 @@ class CBF(QWidget):
     def loadFolder(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", "/gpfs/current/raw/", QFileDialog.ShowDirsOnly)
         self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
-
         if len(self.Images) == 0:
             return 0
         try:
@@ -250,9 +262,8 @@ class CBF(QWidget):
 
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
                 {'name': 'autoColorscale', 'type': 'bool', 'value': False},
-                {'name': 'roi', 'type': 'bool', 'value': False},
                 {'name': 'Line plots', 'type': 'list', 'values': ['', 'line cut', 'ROI']},
-                {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (0, 4), 'visible': False},
+                {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (1, 4), 'visible': False},
                 # {'name': 'subtract_dark', 'type': 'bool', 'value': False},
             ]},
             {'name': 'Iso Line', 'type': 'group', 'children': [
@@ -286,7 +297,7 @@ class CBF(QWidget):
         #self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
         self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.updateTree)
         #self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.showROI)
-        self.p.param('Data Processing', 'nROI').sigValueChanged.connect(self.showROI)
+        self.p.param('Data Processing', 'nROI').sigValueChanged.connect(self.showROI)  # sigValueChanged combines fast changes to a single signal
         self.p.param('Appearence', 'light_bg').sigValueChanged.connect(toggleBg)
         # self.p.param('Data Processing', 'subtract_dark').sigValueChanged.connect(subtractDark)
         # self.p.param('Iso Line', 'iso').sigValueChanged.connect(self.updateRegion)
@@ -483,53 +494,147 @@ class CBF(QWidget):
             filteredData = np.maximum.reduce(ims, axis=0)
         return filteredData
 
-    def showROI(self):
-
-        self.roiColors = ((0, 9), (0, 7), (0, 5), (0, 3))  # for several ROIs eventually
-        rois = len(self.ROI) # number of currently requested rois
-        if self.p.param('Data Processing', 'Line plots').value() != '' and self.p.param('Data Processing', 'nROI').value() > 0:
-            #self.win.nextRow()
-            if self.roiPlotActive is False: # plot is switched on
-                self.roiPlot = self.win.addPlot(row=4, col=0, colspan=3)
-                self.roiPlot.showGrid(x=True, y=True, alpha=.8)
-                self.roiPlot.setMaximumHeight(150)
-                self.win.show()
-                self.show()
-                self.roiPlotActive = True
-                rois = 0
-
-            if self.p.param('Data Processing', 'nROI').value() > rois:
-                self.ROI.append(pg.ROI([100, 200], [200, 1], pen=self.roiColors[rois]))
-                self.ROI[rois].addScaleHandle([0.5, 1], [0.5, 0.5])
-                self.ROI[rois].addScaleRotateHandle([1, 0.5], [0, 0.5])
-                self.ROI[rois].addScaleRotateHandle([0, 0.5], [1, 0.5])
-                self.p3.addItem(self.ROI[rois])
-    
-                self.ROI[rois].setZValue(10)  # make sure ROI is drawn above image
-                self.ROI[rois].sigRegionChanged.connect(self.ROIchanged)
-                self.ROIchanged()
-            else:
-                self.p3.removeItem(self.ROI[-1])
-                del(self.ROI[-1])
+    def show1DPlotWindow(self):
+        # if it does not yet exists add a window
+        # the plot window may be used for Line Cuts as well as ROIs
+        if hasattr(self, 'roiPlot'):
+            self.roiPlot.show()
         else:
-            for r in self.ROI:
-                self.p3.removeItem(r)
-            self.ROI = []
-            try:
-                self.roiPlot.hide()
-            except Exception:
-                pass
+            self.roiPlot = self.win.addPlot(row=4, col=0, colspan=3)
+            self.roiPlot.showGrid(x=True, y=True, alpha=.8)
+            self.roiPlot.setMaximumHeight(150)
             self.win.show()
             self.show()
-            self.roiPlotActive = False
+            self.LinePlotActive = True
 
-        # this is to show the mouse values
-        self.roiPlot.hoverEvent = self.ROIHoverEvent
+    def hide1DPlotWindow(self):
+        # hide if it is there
+        # could also set all corresponding lists to empty ones
+        # not sure what to do with the signals
+        self.roiPlot.hide()
+        self.win.show()
+        self.show()
+        self.LinePlotActive = False
 
-    def ROIchanged(self):
-        for i,roi in enumerate(self.ROI):
-            roiarea = roi.getArrayRegion(self.showData, self.imgLeft)
-            self.roiPlot.plot(roiarea.mean(axis=0), clear=True, pen=self.roiColors[i])
+    def addLineCut(self):
+        # add an nth line cut to LineCuts, add to calculated areas, add to 1dplot, add signal
+        n = len(self.lineCuts)
+        self.lineCuts.append(pg.ROI([100, 300], [200, 1], pen=self.roiColors[n], invertible=True))
+        self.lineCuts[n].addScaleHandle([0.5, 1], [0.5, 0.5])
+        self.lineCuts[n].addScaleRotateHandle([1, 0.5], [0, 0.5])
+        self.lineCuts[n].addScaleRotateHandle([0, 0.5], [1, 0.5])
+        self.p3.addItem(self.lineCuts[n])
+        self.lineCuts[n].setZValue(10)  # make sure ROI is drawn above image
+        # add 1d plot
+        self.lineCutsArea.append(self.lineCuts[n].getArrayRegion(self.showData, self.imgLeft))
+        self.lineCutsCurves.append(self.roiPlot.plot(self.lineCutsArea[n].mean(axis=0), clear=False, pen=self.roiColors[n]))
+        # print('Define ROI with pen: %s' % str(self.roiColors[rois]))
+        self.lineCuts[n].sigRegionChanged.connect(self.lineCutsChanged)
+
+        self.lineCutsChanged()
+
+    def removeLineCut(self, every=False):
+        # remove the last line cut from the lineCuts, from the calculated areas, from the 1dplot
+        # if every is True, remove all defined lineCuts
+        if every:
+            while len(self.lineCuts) > 0:
+                self.p3.removeItem(self.lineCuts[-1])
+                del(self.lineCuts[-1])
+                del(self.lineCutsArea[-1])
+                self.roiPlot.removeItem(self.lineCutsCurves[-1])
+                del(self.lineCutsCurves[-1])
+        else:
+            self.p3.removeItem(self.lineCuts[-1])
+            del(self.lineCuts[-1])
+            del(self.lineCutsArea[-1])
+            self.roiPlot.removeItem(self.lineCutsCurves[-1])
+            del(self.lineCutsCurves[-1])
+
+    def addROI(self):
+        # add roi to ROIS, add to calculated areas, add to 1dplot, add signal
+        n = len(self.ROIs)
+        self.ROIs.append(pg.ROI([100, 300], [100, 100], pen=self.roiColors[n], invertible=True))
+        self.ROIs[n].addScaleHandle([0.5, 1], [0.5, 0.5])
+        self.ROIs[n].addScaleHandle([1, 0.5], [0.5, 0.5])
+        self.p3.addItem(self.ROIs[n])
+        self.ROIs[n].setZValue(10)  # make sure ROI is drawn above image
+        # add 1d plot
+        self.ROIArea.append(self.ROIs[n].getArrayRegion(self.showData, self.imgLeft))
+        self.ROICurves.append(self.roiPlot.plot(self.ROIArea[n].mean(axis=0), clear=False, pen=self.roiColors[n]))
+        # print('Define ROI with pen: %s' % str(self.roiColors[rois]))
+        self.ROIs[n].sigRegionChanged.connect(self.ROIChanged)
+
+        self.ROIChanged()
+
+
+    def removeROI(self, every=False):
+        # remove the last ROI from the ROIS, from the calculated areas, from the 1dplot
+        # if every is True, remove all defined ROIS
+        if every:
+            while len(self.ROIs) > 0:
+                self.p3.removeItem(self.ROIs[-1])
+                del(self.ROIs[-1])
+                del(self.ROIArea[-1])
+                self.roiPlot.removeItem(self.ROICurves[-1])
+                del(self.ROICurves[-1])
+        else:
+            self.p3.removeItem(self.ROIs[-1])
+            del(self.ROIs[-1])
+            del(self.ROIArea[-1])
+            self.roiPlot.removeItem(self.ROICurves[-1])
+            del(self.ROICurves[-1])
+
+
+    def showROI(self):
+        '''
+        TODO: This would need a refractoring!!!
+        '''
+        activeRegions = max(len(self.ROIs), len(self.lineCuts))
+        if self.p.param('Data Processing', 'Line plots').value() != '':
+            self.show1DPlotWindow()
+        else:
+            self.hide1DPlotWindow()
+            self.removeLineCut(every=True)
+            self.removeROI(every=True)
+
+        if self.p.param('Data Processing', 'Line plots').value() == 'line cut' and len(self.ROIs) > 0:  # change to line cut directly from ROI
+            self.removeROI(every=True)
+            self.p.param('Data Processing', 'nROI').setValue(1)
+            self.addLineCut()
+        if self.p.param('Data Processing', 'Line plots').value() == 'ROI' and len(self.lineCuts) > 0:  # change to ROI directly from line cut
+            self.removeLineCut(every=True)
+            self.p.param('Data Processing', 'nROI').setValue(1)
+            self.addROI()
+
+        if self.p.param('Data Processing', 'nROI').value() > activeRegions:
+            if self.p.param('Data Processing', 'Line plots').value() == 'line cut':
+                # the while is necessary, because the sigValueChanged may combine fast changes to a single emission
+                # could be implemented in the addLineCut function?
+                while self.p.param('Data Processing', 'nROI').value() > len(self.lineCuts):
+                    self.addLineCut()
+            elif self.p.param('Data Processing', 'Line plots').value() == 'ROI':
+                # the while is necessary, because the sigValueChanged may combine fast changes to a single emission
+                # could be implemented in the addROI function?
+                while self.p.param('Data Processing', 'nROI').value() > len(self.ROIs):
+                    self.addROI()
+        else:
+            if self.p.param('Data Processing', 'Line plots').value() == 'line cut':
+                # print('removeLineCuts called without every!')
+                while self.p.param('Data Processing', 'nROI').value() < len(self.lineCuts):
+                    self.removeLineCut()
+            elif self.p.param('Data Processing', 'Line plots').value() == 'ROI':
+                while self.p.param('Data Processing', 'nROI').value() < len(self.ROIs):
+                    self.removeROI()
+
+    def ROIChanged(self):
+        for i, roi in enumerate(self.ROIs):
+            roicurve = [np.sum(roi.getArrayRegion(self.ImageData[imno,:,:], self.imgLeft)) for imno in range(self.ImageData.shape[0])]
+            self.ROICurves[i].setData(roicurve)
+
+    def lineCutsChanged(self):
+        for i, lineCut in enumerate(self.lineCuts):
+            self.lineCutsArea[i] = lineCut.getArrayRegion(self.showData, self.imgLeft)
+            self.lineCutsCurves[i].setData(self.lineCutsArea[i].mean(axis=0))
 
     def changeAutocolorscale(self):
         self.autoColorscale = self.p.param('Data Processing', 'autoColorscale').value()
@@ -549,7 +654,7 @@ class CBF(QWidget):
             self.p.param('Data Processing', 'nROI').setValue(1)
         else:
             self.p.param('Data Processing', 'nROI').show()
-            self.showROI()
+        self.showROI()
         self.updateRegion()
 
     def updateRegion(self):
@@ -602,13 +707,13 @@ class CBF(QWidget):
         else:
             self.iso.setData(None)
 
-        if self.ROI is not None:
-            self.ROIchanged()
+        self.lineCutsChanged()
+        self.ROIChanged()
 
         # self.progressBar.hide()
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ex = CBF()
+    ex = CBF(sys.argv)
     sys.exit(app.exec_())
