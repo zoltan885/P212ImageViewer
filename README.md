@@ -10,6 +10,6 @@ TODO implement mask image
 
 TODO implement 1d plot of roi values over the image range
 
-TODO implement multiple roi feature
-
 TODO unify load function
+
+TODO range limits do not seem to work after second loading of images!
