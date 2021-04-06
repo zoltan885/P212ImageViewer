@@ -29,9 +29,9 @@ class CBF(QWidget):
     def __init__(self, *args):
         super().__init__()
         self.title = 'CBF Viewer 0.2'
-        self.Images = []
-        # self.ImageData=np.zeros((1,1,1))
-        # self.Images = '/'
+        self.Images = []  # np.zeros((1,100, 100))
+        # self.showData = self.Images[0]
+        # self.ImageData = self.Images[0]
         self.currentImage = 0
         self.currentFilter = 'average'
         self.autoColorscale = False
@@ -119,6 +119,7 @@ class CBF(QWidget):
         self.progressBar.hide()
         self.imageRegion.setRegion((0, 1))
         self.imageRegion.setBounds((0, len(self.Images)))
+        self.p.param('Data Processing', 'imageNo').setOpts(limits=(0, len(self.Images)-1))
         self.updateRegion()
 
     def loadFolderMapped(self):
@@ -257,6 +258,7 @@ class CBF(QWidget):
                 # {'name': 'Mask Image', 'type': 'action'},
             ]},
             {'name': 'Data Processing', 'type': 'group', 'children': [
+                {'name': 'imageNo', 'type': 'int', 'value': 0, 'step': 1, 'bounds': (0, 0)},
                 {'name': 'iOrient', 'type': 'list', 'values': ['none', 'flipUD', 'flipLR', 'transpose', 'rot90', 'rot180', 'rot270', 'rot180 + tr']},
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
@@ -290,6 +292,7 @@ class CBF(QWidget):
         self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
         self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
         self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
+        self.p.param('Data Processing', 'imageNo').sigValueChanged.connect(self.changeImageNo)
         self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
@@ -325,8 +328,8 @@ class CBF(QWidget):
 
         self.win.nextRow()
         self.p2 = self.win.addPlot(row=3, colspan=3)
-        self.imageRegion = pg.LinearRegionItem(bounds=[0, None])
-        self.imageRegion.sigRegionChanged.connect(self.updateRegion)  # this calls the internal updateRegion and not the self.updateRegion!!!
+        self.imageRegion = pg.LinearRegionItem(bounds=[0, None], swapMode='push')
+        self.imageRegion.sigRegionChanged.connect(self.updateRegion)
 
         self.p2.setMaximumHeight(80)
         self.p2.addItem(self.imageRegion)
@@ -392,9 +395,6 @@ class CBF(QWidget):
             mappedPos = self.roiPlot.vb.mapSceneToView(pos)
             x, y = mappedPos.x(), mappedPos.y()
             self.LabelR.setText('%.1f %.1f' % (x, y))
-
-
-
 
     def prepImages(self):
         '''
@@ -506,6 +506,8 @@ class CBF(QWidget):
             self.win.show()
             self.show()
             self.LinePlotActive = True
+            self.roiPlot.hoverEvent = self.ROIHoverEvent
+
 
     def hide1DPlotWindow(self):
         # hide if it is there
@@ -657,6 +659,29 @@ class CBF(QWidget):
         self.showROI()
         self.updateRegion()
 
+    def changeImageNo(self):
+        i = self.p.param('Data Processing', 'imageNo').value()
+        self.imageRegion.setRegion((max(0, i-0.5), min(i+0.5, len(self.Images))))
+        self.updateRegion()
+
+    def updateImageRegion(self):
+        '''
+        this takes care of the linearRegionItems bounds and the labels
+        '''
+        fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
+        toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
+        print('from %d to %d' %(fromImage, toImage))
+        self.currentImage = (fromImage, toImage)
+        if fromImage == toImage-1:
+            self.LabelL.setText("%s" % self.Images[fromImage].rpartition('/')[2])
+        else:
+            if self.currentFilter == 'average':
+                self.LabelL.setText("Mean of images: %i:%i" % (fromImage*self.steps, toImage*self.steps))
+            elif self.currentFilter == 'max':
+                self.LabelL.setText("Max of images: %i:%i" % (fromImage*self.steps, toImage*self.steps))
+
+
+
     def updateRegion(self):
         self.imgLeft.show()
         self.imageRegion.setBounds = ([0, self.ImageData.shape[0]])
@@ -666,27 +691,14 @@ class CBF(QWidget):
         self.p3.getAxis('bottom').setGrid(0)
         self.p3.getAxis('left').setGrid(0)
 
+        self.updateImageRegion()
+
         fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
         toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
-        self.currentImage = (fromImage, toImage)
-        if self.currentImage[0] == self.currentImage[1]-1:
-            # self.p3.setTitle("%s" % self.Images[self.currentImage[0]].rpartition('/')[2])
-            self.LabelL.setText("%s" % self.Images[self.currentImage[0]].rpartition('/')[2])
-            # self.p3.setTitle("Image %i" % (self.currentImage[0]*self.binning))
-        else:
-            if self.currentFilter == 'average':
-                # self.p3.setTitle("Mean of images: %i:%i" % (self.currentImage[0]*self.steps, self.currentImage[1]*self.steps))
-                self.LabelL.setText("Mean of images: %i:%i" % (self.currentImage[0]*self.steps, self.currentImage[1]*self.steps))
-            elif self.currentFilter == 'max':
-                # self.p3.setTitle("Max of images: %i:%i" % (self.currentImage[0]*self.steps, self.currentImage[1]*self.steps))
-                self.LabelL.setText("Max of images: %i:%i" % (self.currentImage[0]*self.steps, self.currentImage[1]*self.steps))
 
-        if len(self.ImageData[fromImage:toImage, :, :]) > 0:
-            self.showData = self.filterImages(self.ImageData[fromImage:toImage, :, :])
+        if len(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :]) > 0:
+            self.showData = self.filterImages(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :])
             self.showData = self.maskValsAbove(self.showData)
-            #if int(self.p.param('Data Processing', 'maskValsAbove').value()) > 0:
-            #    self.showData[self.showData > int(self.p.param('Data Processing', 'maskValsAbove').value())] = 0
-
             self.showData = self.prepFinalImage(self.showData)
 
             if self.autoColorscale:
@@ -695,7 +707,6 @@ class CBF(QWidget):
                 self.imgLeft.setImage(self.showData, autoLevels=False)
         else:
             self.showData = self.ImageData[0]
-
         # self.statusLabel.setText('Updating isoline to %.1f' % self.p.param('Iso Line', 'iso').value())
         # self.progressBar.setMaximum(2)
         # self.progressBar.show()
@@ -709,7 +720,6 @@ class CBF(QWidget):
 
         self.lineCutsChanged()
         self.ROIChanged()
-
         # self.progressBar.hide()
 
 
