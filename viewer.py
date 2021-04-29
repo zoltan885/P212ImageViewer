@@ -24,11 +24,127 @@ import psutil
 import scipy.ndimage
 #from numba import jit
 
+VERSION = {'major': 0, 'minor': 3}
+
+baseFolder = '/gpfs/current/raw/'
+
+
+def _fioReader(fiofile):
+    with open(fiofile, 'r') as f:
+        fiocontent = f.readlines()
+    for l in fiocontent:
+        if 'channel1_FileDir1' in l:
+            folder = l.split('=')[1].strip()
+
+
+    return folder
+
+class fioDataset:
+    '''
+    the class represents a column of a FIO file. The first column is the
+    x-axis which is used by all columns, name_in, e.g. test_00001_C1
+    '''
+    def __init__(self, name_in):
+        self.name = name_in
+        #print name_in
+        lst = self.name.split('_')
+        if len(lst) > 1:
+            self.deviceName = lst[-1]
+            if self.deviceName.find( "0") == 0:
+                self.deviceName = "ScanName"
+        else:
+            if '/' in name_in:
+                try:
+                    self.deviceName = PT.AttributeProxy(name_in).get_config().label
+                except:
+                    self.deviceName = name_in
+            else:                
+                self.deviceName = name_in
+                            
+        self.x = []
+        self.y = []
+        return
+
+
+def _read(name):
+    comments = []
+    user_comments = []
+    parameters = []
+    dataSets = []
+
+    try:
+        inp = open( name, 'r')
+    except IOError as e:
+        print("Failed to open {0}, {1}".format(name, e.strerror))
+        sys.exit(255)
+    lines = inp.readlines()
+    inp.close()
+    flagComment = 0
+    flagParameter = 0
+    flagData = 0
+    for line in lines:
+        line = line.strip()
+        if line.find("!") == 0:
+            user_comments.append(line)
+            flagComment = False
+            flagParameter = False
+            flagData = False
+        elif line.find("%c") == 0:
+            flagComment = True
+            flagParameter = False
+            flagData = False
+            continue
+        elif line.find("%p") == 0:
+            flagComment = False
+            flagParameter = True
+            flagData = False
+            continue
+        elif line.find("%d") == 0:
+            flagComment = False
+            flagParameter = False
+            flagData = True
+            continue
+        #
+        if flagComment:
+            comments.append(line)
+        #
+        # parName = parValue
+        #
+        if flagParameter:
+            lst = line.split("=")
+            parameters.append({lst[0]: lst[1]})
+        if not flagData:
+            continue
+        if 'none' in line.lower():
+            continue
+        lst = line.split()
+        if lst[0] == "Col":
+            #
+            # the 'Col 1 ...' description does not create a
+            # new FIO_dataset because it contains the x-axis for all
+            #
+            if lst[1] == "1":
+                pass
+            else:
+                dataSets.append(fioDataset(lst[2]))
+        else:
+            for i in range(1, len(dataSets)+1):
+                dataSets[i-1].x.append(lst[0])
+                dataSets[i-1].y.append(lst[i])
+
+
+
+
+
+    return dataSets, parameters
+
+
+
 
 class CBF(QWidget):
     def __init__(self, *args):
         super().__init__()
-        self.title = 'CBF Viewer 0.2'
+        self.title = 'P21.2 ImageViewer %i.%i' % (VERSION['major'], VERSION['minor'])
         self.Images = []  # np.zeros((1,100, 100))
         # self.showData = self.Images[0]
         # self.ImageData = self.Images[0]
@@ -67,7 +183,7 @@ class CBF(QWidget):
         return True
 
     def loadImage(self):
-        self.Images = QFileDialog.getOpenFileNames(self, "Open file", "/gpfs/current/raw/", "Image Files (*.cbf *.tif)")[0]
+        self.Images = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif)")[0]
         self.steps = 1
         if len(self.Images) == 0:
             return 0
@@ -90,7 +206,7 @@ class CBF(QWidget):
         self.updateRegion()
 
     def loadFolder(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", "/gpfs/current/raw/", QFileDialog.ShowDirsOnly)
+        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
         self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
         if len(self.Images) == 0:
             return 0
@@ -123,7 +239,7 @@ class CBF(QWidget):
         self.updateRegion()
 
     def loadFolderMapped(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", "/gpfs/current/raw/", QFileDialog.ShowDirsOnly)
+        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
         self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
         if len(self.Images) == 0:
             return 0
@@ -157,7 +273,7 @@ class CBF(QWidget):
 
 
     def loadFolderWithDark(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", "/gpfs/current/raw/", QFileDialog.ShowDirsOnly)
+        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
         self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
         self.Darks = [i for i in self.Images if 'dark' in i]
         self.Images = [i for i in self.Images if 'dark' not in i]  # if there are dark images in the folder don't use them
@@ -198,7 +314,7 @@ class CBF(QWidget):
         self.updateRegion()
 
     def loadFolderTif(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", "/gpfs/current/raw/", QFileDialog.ShowDirsOnly)
+        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
         self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
         if len(self.Images) == 0:
             return 0
@@ -228,6 +344,8 @@ class CBF(QWidget):
         self.imageRegion.setRegion((0, 1))
         self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
+
+    def loadFIO(self):
 
 
     '''
