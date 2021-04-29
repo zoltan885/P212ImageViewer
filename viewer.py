@@ -184,6 +184,7 @@ class CBF(QWidget):
 
     def loadImage(self):
         self.Images = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif)")[0]
+        self.Images = []
         self.steps = 1
         if len(self.Images) == 0:
             return 0
@@ -207,6 +208,7 @@ class CBF(QWidget):
 
     def loadFolder(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
+        self.Images = []
         self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
         if len(self.Images) == 0:
             return 0
@@ -240,6 +242,7 @@ class CBF(QWidget):
 
     def loadFolderMapped(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
+        self.Images = []
         self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
         if len(self.Images) == 0:
             return 0
@@ -274,6 +277,7 @@ class CBF(QWidget):
 
     def loadFolderWithDark(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
+        self.Images = []
         self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
         self.Darks = [i for i in self.Images if 'dark' in i]
         self.Images = [i for i in self.Images if 'dark' not in i]  # if there are dark images in the folder don't use them
@@ -315,6 +319,8 @@ class CBF(QWidget):
 
     def loadFolderTif(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
+        self.Images = []
+
         self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
         if len(self.Images) == 0:
             return 0
@@ -788,7 +794,7 @@ class CBF(QWidget):
         '''
         fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
         toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
-        print('from %d to %d' %(fromImage, toImage))
+        #print('from %d to %d' %(fromImage, toImage))
         self.currentImage = (fromImage, toImage)
         if fromImage == toImage-1:
             self.LabelL.setText("%s" % self.Images[fromImage].rpartition('/')[2])
