@@ -295,7 +295,7 @@ class CBF(QWidget):
             ]},
             {'name': 'Data Processing', 'type': 'group', 'children': [
                 {'name': 'imageNo', 'type': 'int', 'value': 0, 'step': 1, 'bounds': (0, 0)},
-                #{'name': 'iOrient', 'type': 'list', 'values': ['none', 'flipUD', 'flipLR', 'transpose', 'rot90', 'rot180', 'rot270', 'rot180 + tr']},
+                {'name': 'iOrient', 'type': 'list', 'values': ['none', 'flipUD', 'flipLR', 'transpose', 'rot90', 'rot180', 'rot270', 'rot180 + tr']},
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
