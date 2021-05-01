@@ -48,6 +48,13 @@ copyrightNotice = "\n\n    %s version %i.%i\n    Copyright (C) Hegedues %i\n\
     % (NAME, VERSION['major'], VERSION['minor'], YEAR)
 
 
+class Data():
+    def __init__(self, *args):
+        self.defaultData = np.ones((500,500))
+
+
+
+
 class CBF(QWidget):
     def __init__(self, *args):
         super().__init__()
@@ -288,12 +295,12 @@ class CBF(QWidget):
             ]},
             {'name': 'Data Processing', 'type': 'group', 'children': [
                 {'name': 'imageNo', 'type': 'int', 'value': 0, 'step': 1, 'bounds': (0, 0)},
-                {'name': 'iOrient', 'type': 'list', 'values': ['none', 'flipUD', 'flipLR', 'transpose', 'rot90', 'rot180', 'rot270', 'rot180 + tr']},
+                #{'name': 'iOrient', 'type': 'list', 'values': ['none', 'flipUD', 'flipLR', 'transpose', 'rot90', 'rot180', 'rot270', 'rot180 + tr']},
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
                 {'name': 'autoColorscale', 'type': 'bool', 'value': False},
-                {'name': 'Line plots', 'type': 'list', 'values': ['', 'line cut', 'ROI']},
+                {'name': 'Line plots', 'type': 'list', 'values': ['None', 'line cut', 'ROI']},
                 {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (1, 4), 'visible': False},
                 # {'name': 'subtract_dark', 'type': 'bool', 'value': False},
             ]},
@@ -322,7 +329,7 @@ class CBF(QWidget):
         self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
         self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
         self.p.param('Data Processing', 'imageNo').sigValueChanged.connect(self.changeImageNo)
-        self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
+        #self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
@@ -368,6 +375,7 @@ class CBF(QWidget):
         self.imgLeft = pg.ImageItem()
         self.p3.getViewBox().setAspectLocked(True)
         self.p3.addItem(self.imgLeft)
+        #self.imgLeft.setLookupTable('fire')
 
         self.iso = pg.IsocurveItem(level=0.8, pen='g')
         self.iso.setParentItem(self.imgLeft)
@@ -382,8 +390,9 @@ class CBF(QWidget):
 
         # self.ctrROI=pg.LineROI([0, 5], [0, 0], width=2, pen=(1,9))
 
-        self.hist = pg.HistogramLUTItem()
-        self.hist.setImageItem(self.imgLeft)
+        self.hist = pg.HistogramLUTItem(image=self.imgLeft)
+        self.hist.imageItem().setLookupTable('flame')
+        #self.hist.setImageItem(self.imgLeft)
         # self.hist.setMaximumWidth(150)
         self.win.addItem(self.hist, row=0, col=2)
         self.imgLeft.hoverEvent = self.imageHoverEvent
@@ -621,7 +630,7 @@ class CBF(QWidget):
         TODO: This would need a refractoring!!!
         '''
         activeRegions = max(len(self.ROIs), len(self.lineCuts))
-        if self.p.param('Data Processing', 'Line plots').value() != '':
+        if self.p.param('Data Processing', 'Line plots').value() != 'None':
             self.show1DPlotWindow()
         else:
             self.hide1DPlotWindow()
@@ -680,7 +689,7 @@ class CBF(QWidget):
             self.p.param('Iso Line', 'iso').show()
         else:
             self.p.param('Iso Line', 'iso').hide()
-        if self.p.param('Data Processing', 'Line plots').value() == '':
+        if self.p.param('Data Processing', 'Line plots').value() == 'None':
             self.p.param('Data Processing', 'nROI').hide()
             self.p.param('Data Processing', 'nROI').setValue(1)
         else:
