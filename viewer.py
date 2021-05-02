@@ -692,7 +692,7 @@ class CBF(QWidget):
         if self.ROIs != []:
             for i, roi in enumerate(self.ROIs):
                 roicurve = [np.sum(roi.getArrayRegion(self.ImageData[imno,:,:], self.imgLeft)) for imno in range(self.ImageData.shape[0])]
-                if self.p.param('Data Processing', 'subtract_dark').value() and self.Dark is not None:
+                if self.p.param('Dark', 'subtract_dark').value() and self.Dark is not None:
                     darkROI = np.sum(roi.getArrayRegion(self.Dark, self.imgLeft))
                     roicurve = np.array(roicurve) - darkROI
                 self.ROICurves[i].setData(roicurve)
@@ -718,7 +718,7 @@ class CBF(QWidget):
         if self.Dark is not None:
             self.p.param('Dark', 'dark file').show()
         else:
-            self.p.param('Actions', 'dark file').hide()
+            self.p.param('Dark', 'dark file').hide()
         if self.p.param('Data Processing', 'Line plots').value() == 'None':
             self.p.param('Data Processing', 'nROI').hide()
             self.p.param('Data Processing', 'nROI').setValue(1)
