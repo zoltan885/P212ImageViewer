@@ -35,10 +35,11 @@ import fabio
 import psutil
 import scipy.ndimage
 #from numba import jit
+import numpy.ma as ma
 
 
 NAME = 'P21.2 ImageViewer'
-VERSION = {'major': 0, 'minor': 3}
+VERSION = {'major': 0, 'minor': 4}
 YEAR = 2021
 
 
@@ -61,6 +62,7 @@ class CBF(QWidget):
         print(copyrightNotice)
         self.title = '%s %i.%i' % (NAME, VERSION['major'], VERSION['minor'])
         self.Images = []  # np.zeros((1,100, 100))
+        self.Dark = None
         # self.showData = self.Images[0]
         # self.ImageData = self.Images[0]
         self.currentImage = 0
@@ -119,14 +121,16 @@ class CBF(QWidget):
         self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
         self.imageRegion.setRegion((0, 1))
         self.imageRegion.setBounds([0, len(self.Images)])
+        self.p.param('Dark', 'subtract_dark').setValue(False)
         self.updateRegion()
 
     def loadFolder(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
-        self.Images = []
         self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
-        if len(self.Images) == 0:
-            return 0
+        if not os.path.exists(self.dir):
+            return
+        else:
+            self.ImageData = []  # just to be on the safe side?
         try:
             self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
         except ValueError:
@@ -151,13 +155,13 @@ class CBF(QWidget):
         #print(self.ImageData.shape[0])
         self.progressBar.hide()
         self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds((0, len(self.Images)))
+        #self.imageRegion.setBounds((0, self.ImageData.shape[0]))  # this only seems to work once, then it complains
         self.p.param('Data Processing', 'imageNo').setOpts(limits=(0, len(self.Images)-1))
+        self.p.param('Dark', 'subtract_dark').setValue(False)
         self.updateRegion()
 
     def loadFolderMapped(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
-        self.Images = []
         self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
         if len(self.Images) == 0:
             return 0
@@ -185,6 +189,7 @@ class CBF(QWidget):
         self.progressBar.hide()
         self.imageRegion.setRegion((0, 1))
         self.imageRegion.setBounds((0, len(self.Images)))
+        self.p.param('Dark', 'subtract_dark').setValue(False)
         self.updateRegion()
 
 
@@ -234,11 +239,11 @@ class CBF(QWidget):
 
     def loadFolderTif(self):
         self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
-        self.Images = []
-
         self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
-        if len(self.Images) == 0:
-            return 0
+        if not os.path.exists(self.dir):
+            return 255
+        else:
+            self.ImageData = []  # just to be on the safe side?
         try:
             self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
         except ValueError:
@@ -263,18 +268,21 @@ class CBF(QWidget):
         #print(self.ImageData.shape[0])
         self.progressBar.hide()
         self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds((0, len(self.Images)))
+        # self.imageRegion.setBounds((0, self.ImageData.shape[0]))
         self.updateRegion()
 
-    '''
+    def loadDark(self):
+        d = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif)")[0]
+        self.Dark = np.flipud(fabio.open(d[0]).data)
+        self.p.param('Dark', 'dark file').setValue('%s' % d[0].rpartition('/')[2])
+        self.p.param('Dark', 'subtract_dark').setValue(False)
+        self.updateTree()
+
     def subtractDark(self):
-        if self.p.param('Data Processing', 'subtract_dark').value():
-            if self.Dark is not None:
-                self.ImageData = np.array([im-self.Dark for im in self.ImageData])
-                self.updateRegion()
-            else:
-                pass
-    '''
+        '''
+        
+        '''
+        pass
 
     def initUI(self):
         self.setWindowTitle(self.title)
@@ -286,23 +294,29 @@ class CBF(QWidget):
             {'name': 'Actions', 'type': 'group', 'children': [
                 {'name': 'Load Image', 'type': 'action'},
                 {'name': 'Load Folder', 'type': 'action'},
-                {'name': 'Load Folder Mem', 'type': 'action'},
-                {'name': 'Load Folder WD', 'type': 'action'},
+                #{'name': 'Load Folder Mem', 'type': 'action'},
+                #{'name': 'Load Folder WD', 'type': 'action'},
                 {'name': 'Load Folder tif', 'type': 'action'},
                 {'name': 'Slicing', 'type': 'str', 'value': '0:None:1', 'step': 1},
-                # {'name': 'Dark Image', 'type': 'action'},
+
                 # {'name': 'Mask Image', 'type': 'action'},
             ]},
+            {'name': 'Dark', 'type': 'group', 'children': [
+                {'name': 'Load Dark', 'type': 'action'},
+                {'name': 'dark file', 'type': 'str', 'value': 'None', 'visible': False},
+                {'name': 'subtract_dark', 'type': 'bool', 'value': False},
+                ]},
             {'name': 'Data Processing', 'type': 'group', 'children': [
                 {'name': 'imageNo', 'type': 'int', 'value': 0, 'step': 1, 'bounds': (0, 0)},
                 {'name': 'iOrient', 'type': 'list', 'values': ['none', 'flipUD', 'flipLR', 'transpose', 'rot90', 'rot180', 'rot270', 'rot180 + tr']},
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
+                #{'name': 'logColor', 'type': 'bool', 'value': False},
                 {'name': 'autoColorscale', 'type': 'bool', 'value': False},
                 {'name': 'Line plots', 'type': 'list', 'values': ['None', 'line cut', 'ROI']},
                 {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (1, 4), 'visible': False},
-                # {'name': 'subtract_dark', 'type': 'bool', 'value': False},
+
             ]},
             {'name': 'Iso Line', 'type': 'group', 'children': [
                 {'name': 'show', 'type': 'bool', 'value': False},
@@ -319,26 +333,29 @@ class CBF(QWidget):
             else:
                 self.win.setBackground('k')
 
-        def subtractDark():
-            self.subtractDark()
 
         self.p = Parameter.create(name='params', type='group', children=params)
         self.p.param('Actions', 'Load Image').sigActivated.connect(self.loadImage)
         self.p.param('Actions', 'Load Folder').sigActivated.connect(self.loadFolder)
-        self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
-        self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
+        #self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
+        #self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
         self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
+
+        self.p.param('Dark', 'Load Dark').sigActivated.connect(self.loadDark)
+        self.p.param('Dark', 'subtract_dark').sigValueChanged.connect(self.updateRegion)
+
         self.p.param('Data Processing', 'imageNo').sigValueChanged.connect(self.changeImageNo)
         #self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
+        #self.p.param('Data Processing', 'logColor').sigStateChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
         #self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
         self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.updateTree)
         #self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.showROI)
         self.p.param('Data Processing', 'nROI').sigValueChanged.connect(self.showROI)  # sigValueChanged combines fast changes to a single signal
         self.p.param('Appearence', 'light_bg').sigValueChanged.connect(toggleBg)
-        # self.p.param('Data Processing', 'subtract_dark').sigValueChanged.connect(subtractDark)
+
         # self.p.param('Iso Line', 'iso').sigValueChanged.connect(self.updateRegion)
         self.p.param('Iso Line', 'show').sigStateChanged.connect(self.updateTree)
         self.p.param('Iso Line', 'iso').sigValueChanged.connect(self.updateRegion)
@@ -408,7 +425,9 @@ class CBF(QWidget):
         self.show()
 
     def imageHoverEvent(self, event):
-        '''Show the position, pixel, and value under the mouse cursor.'''
+        '''Show the position, pixel, and value under the mouse cursor.
+        TODO: use  self.showData instead of this crap
+        '''
         if event.isExit():
             if self.currentImage[0] == self.currentImage[1]-1:
                 # self.p3.setTitle("%s" % self.Images[self.currentImage[0]].rpartition('/')[2])
@@ -422,6 +441,8 @@ class CBF(QWidget):
         i = int(np.clip(i, 0, self.ImageData.shape[1] - 1))
         j = int(np.clip(j, 0, self.ImageData.shape[2] - 1))
         val = np.mean(self.ImageData[self.currentImage[0]:self.currentImage[1], i, j])
+        if self.p.param('Dark', 'subtract_dark').value() and self.Dark is not None:
+            val -= self.Dark[i, j]
         # self.p3.setTitle("pixel: (%d, %d), value: %.1f" % (i, j, val))
         self.LabelL.setText("pixel: (%d, %d), value: %.1f" % (i, j, val))
 
@@ -551,10 +572,11 @@ class CBF(QWidget):
         # hide if it is there
         # could also set all corresponding lists to empty ones
         # not sure what to do with the signals
-        self.roiPlot.hide()
-        self.win.show()
-        self.show()
-        self.LinePlotActive = False
+        if self.LinePlotActive:
+            self.roiPlot.hide()
+            self.win.show()
+            self.show()
+            self.LinePlotActive = False
 
     def addLineCut(self):
         # add an nth line cut to LineCuts, add to calculated areas, add to 1dplot, add signal
@@ -667,9 +689,13 @@ class CBF(QWidget):
                     self.removeROI()
 
     def ROIChanged(self):
-        for i, roi in enumerate(self.ROIs):
-            roicurve = [np.sum(roi.getArrayRegion(self.ImageData[imno,:,:], self.imgLeft)) for imno in range(self.ImageData.shape[0])]
-            self.ROICurves[i].setData(roicurve)
+        if self.ROIs != []:
+            for i, roi in enumerate(self.ROIs):
+                roicurve = [np.sum(roi.getArrayRegion(self.ImageData[imno,:,:], self.imgLeft)) for imno in range(self.ImageData.shape[0])]
+                if self.p.param('Data Processing', 'subtract_dark').value() and self.Dark is not None:
+                    darkROI = np.sum(roi.getArrayRegion(self.Dark, self.imgLeft))
+                    roicurve = np.array(roicurve) - darkROI
+                self.ROICurves[i].setData(roicurve)
 
     def lineCutsChanged(self):
         for i, lineCut in enumerate(self.lineCuts):
@@ -689,6 +715,10 @@ class CBF(QWidget):
             self.p.param('Iso Line', 'iso').show()
         else:
             self.p.param('Iso Line', 'iso').hide()
+        if self.Dark is not None:
+            self.p.param('Dark', 'dark file').show()
+        else:
+            self.p.param('Actions', 'dark file').hide()
         if self.p.param('Data Processing', 'Line plots').value() == 'None':
             self.p.param('Data Processing', 'nROI').hide()
             self.p.param('Data Processing', 'nROI').setValue(1)
@@ -745,6 +775,15 @@ class CBF(QWidget):
                 self.imgLeft.setImage(self.showData, autoLevels=False)
         else:
             self.showData = self.ImageData[0]
+
+        if self.p.param('Dark', 'subtract_dark').value() and self.Dark is not None:
+            self.showData -= self.Dark
+
+        #if self.p.param('Data Processing', 'logColor').value():
+        #    print('Taking the logarithm')
+        #    self.showData = np.where(self.showData<1e-3, 1e-3, self.showData)
+        #    self.showData = np.log(self.showData)
+
         # self.statusLabel.setText('Updating isoline to %.1f' % self.p.param('Iso Line', 'iso').value())
         # self.progressBar.setMaximum(2)
         # self.progressBar.show()
