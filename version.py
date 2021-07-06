@@ -31,7 +31,7 @@ changelog ={
     'version 0.4': [
         'Added Eiger2 hdf support'
         ],
-    
+
 
 
     }
