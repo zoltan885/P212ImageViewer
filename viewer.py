@@ -35,17 +35,15 @@ import fabio
 import psutil
 import scipy.ndimage
 #from numba import jit
+import time
 
 
-NAME = 'P21.2 ImageViewer'
-VERSION = {'major': 0, 'minor': 3}
-YEAR = 2021
+from version import *
+from settings import baseFolder
+from dataClass import dataClass
 
 
-baseFolder = '/gpfs/current/raw/'
-copyrightNotice = "\n\n    %s version %i.%i\n    Copyright (C) Hegedues %i\n\
-    This program comes with ABSOLUTELY NO WARRANTY; for details see the LICENSE."\
-    % (NAME, VERSION['major'], VERSION['minor'], YEAR)
+
 
 
 class CBF(QWidget):
@@ -58,7 +56,7 @@ class CBF(QWidget):
         # self.ImageData = self.Images[0]
         self.currentImage = 0
         self.currentFilter = 'average'
-        self.autoColorscale = False
+        self.autoColorscale = True
         self.knownFileTypes = ['tif', 'cbf']
 
         self.LinePlotActive = False
@@ -259,6 +257,54 @@ class CBF(QWidget):
         self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
 
+    def updateProgressBar(self, r):
+        self.progressBar.setValue(100.*r)
+
+
+    def loadDataFolder(self):
+        d = dataClass()
+        path = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
+        self.progressBar.setMaximum(100)  # this has to be a larger integer
+        self.progressBar.show()
+        slicing = self.p.param('Actions', 'Slicing').value()
+        d.loadFolder(path=path, slicing=slicing, callback=self.updateProgressBar)
+        self.progressBar.hide()
+        self.ImageData = d.data
+        self.Images = d.files
+        self.steps = d.steps
+        self.imageRegion.setRegion((0, 1))
+        self.imageRegion.setBounds((0, len(self.Images)))
+        self.updateRegion()
+
+    def loadEiger2(self):
+        d = dataClass()
+        fname = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *nexus)")[0][0]
+        self.progressBar.setMaximum(100)  # this has to be a larger integer
+        self.progressBar.show()
+        slicing = self.p.param('Actions', 'Slicing').value()
+        d.loadEiger2(fname=fname, slicing=slicing, callback=self.updateProgressBar)
+        self.progressBar.hide()
+        self.ImageData = d.data
+        self.Images = d.files
+        self.steps = d.steps
+        self.imageRegion.setRegion((0, 1))
+        #print(self.Images)
+        #print(self.imageRegion.bounds)
+        self.imageRegion.setBounds((0, len(self.Images)))
+        self.updateRegion()
+
+
+    def loadDataFile(self):
+        d = dataClass()
+        path = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *nexus)")[0][0]
+        d.loadFile(path=path)
+        self.ImageData = d.data
+        self.Images = d.files
+        self.imageRegion.setRegion((0, 1))
+        self.imageRegion.setBounds((0, 1))
+        self.updateRegion()
+
+
     '''
     def subtractDark(self):
         if self.p.param('Data Processing', 'subtract_dark').value():
@@ -277,6 +323,9 @@ class CBF(QWidget):
 
         params = [
             {'name': 'Actions', 'type': 'group', 'children': [
+                {'name': 'LoadDataFolder', 'type': 'action'},
+                {'name': 'LoadDataFile', 'type': 'action'},
+                {'name': 'Load Eiger2', 'type': 'action'},
                 {'name': 'Load Image', 'type': 'action'},
                 {'name': 'Load Folder', 'type': 'action'},
                 {'name': 'Load Folder Mem', 'type': 'action'},
@@ -292,7 +341,7 @@ class CBF(QWidget):
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
-                {'name': 'autoColorscale', 'type': 'bool', 'value': False},
+                {'name': 'autoColorscale', 'type': 'bool', 'value': self.autoColorscale},
                 {'name': 'Line plots', 'type': 'list', 'values': ['', 'line cut', 'ROI']},
                 {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (1, 4), 'visible': False},
                 # {'name': 'subtract_dark', 'type': 'bool', 'value': False},
@@ -316,6 +365,9 @@ class CBF(QWidget):
             self.subtractDark()
 
         self.p = Parameter.create(name='params', type='group', children=params)
+        self.p.param('Actions', 'LoadDataFolder').sigActivated.connect(self.loadDataFolder)
+        self.p.param('Actions', 'LoadDataFile').sigActivated.connect(self.loadDataFile)
+        self.p.param('Actions', 'Load Eiger2').sigActivated.connect(self.loadEiger2)
         self.p.param('Actions', 'Load Image').sigActivated.connect(self.loadImage)
         self.p.param('Actions', 'Load Folder').sigActivated.connect(self.loadFolder)
         self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
@@ -428,8 +480,6 @@ class CBF(QWidget):
     def prepImages(self):
         '''
         Transform images (works on the whole 3d image stack, where the 1st axis is the image no):
-            geometric
-        This transforms all images, which does not make sense at all!!!
         some source material:
             https://stackoverflow.com/questions/41309201/efficient-transformations-of-3d-numpy-arrays
         '''
