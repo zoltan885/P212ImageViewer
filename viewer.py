@@ -35,17 +35,15 @@ import fabio
 import psutil
 import scipy.ndimage
 #from numba import jit
+import time
 
 
-NAME = 'P21.2 ImageViewer'
-VERSION = {'major': 0, 'minor': 3}
-YEAR = 2021
+from version import *
+from settings import baseFolder
+from dataClass import dataClass
 
 
-baseFolder = '/gpfs/current/raw/'
-copyrightNotice = "\n\n    %s version %i.%i\n    Copyright (C) Hegedues %i\n\
-    This program comes with ABSOLUTELY NO WARRANTY; for details see the LICENSE."\
-    % (NAME, VERSION['major'], VERSION['minor'], YEAR)
+
 
 
 class Data():
@@ -65,7 +63,7 @@ class CBF(QWidget):
         # self.ImageData = self.Images[0]
         self.currentImage = 0
         self.currentFilter = 'average'
-        self.autoColorscale = False
+        self.autoColorscale = True
         self.knownFileTypes = ['tif', 'cbf']
 
         self.LinePlotActive = False
@@ -97,174 +95,54 @@ class CBF(QWidget):
             return False
         return True
 
-    def loadImage(self):
-        self.Images = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif)")[0]
-        self.Images = []
-        self.steps = 1
-        if len(self.Images) == 0:
-            return 0
-        assert self._checkSize(self.Images, maxOccupation=.8), 'Memory exceeded'
-        SizeDummy = fabio.open(self.Images[0]).data
-        xSize, ySize = SizeDummy.shape[0], SizeDummy.shape[1]
-        self.ImageData = np.zeros([len(self.Images), xSize, ySize])
-        self.statusLabel.setText('Loading %i images' % len(self.Images))
-        self.progressBar.setMaximum(len(self.Images))
+
+    def updateProgressBar(self, r):
+        self.progressBar.setValue(100.*r)
+
+
+    def loadDataFolder(self):
+        d = dataClass()
+        path = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
+        self.progressBar.setMaximum(100)  # this has to be a larger integer
         self.progressBar.show()
-        for i, filename in enumerate(self.Images):
-            self.progressBar.setValue(i+1)
-            self.update()
-            self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
-        # self.imageRegion.setBounds = ([0, self.ImageData.shape[0]])
+        slicing = self.p.param('Actions', 'Slicing').value()
+        d.loadFolder(path=path, slicing=slicing, callback=self.updateProgressBar)
         self.progressBar.hide()
-        self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds([0, len(self.Images)])
-        self.updateRegion()
-
-    def loadFolder(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
-        self.Images = []
-        self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
-        if len(self.Images) == 0:
-            return 0
-        try:
-            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
-        except ValueError:
-            print('Slicing was not understood!')
-        try:
-            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
-        except ValueError:
-            self.steps = 1
-        # assert self._checkSize(self.Images, maxOccupation=.8), 'Memory exceeded'
-        self.progressBar.setMaximum(len(self.Images))
-        self.progressBar.show()
-        SizeDummy = fabio.open(self.Images[0]).data
-        xSize, ySize = SizeDummy.shape[0], SizeDummy.shape[1]
-        # print(xSize, ySize)
-        self.statusLabel.setText('Loading %i images' % len(self.Images))
-        self.ImageData = np.zeros([len(self.Images), xSize, ySize])
-        for i, filename in enumerate(self.Images):
-            self.progressBar.setValue(i+1)
-            self.update()
-            self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
-        self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        #print(self.ImageData.shape[0])
-        self.progressBar.hide()
-        self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds((0, len(self.Images)))
-        self.p.param('Data Processing', 'imageNo').setOpts(limits=(0, len(self.Images)-1))
-        self.updateRegion()
-
-    def loadFolderMapped(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
-        self.Images = []
-        self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
-        if len(self.Images) == 0:
-            return 0
-        try:
-            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
-        except ValueError:
-            print('Slicing was not understood!')
-        try:
-            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
-        except ValueError:
-            self.steps = 1
-
-        self.progressBar.setMaximum(len(self.Images))
-        self.progressBar.show()
-        SizeDummy = fabio.open(self.Images[0]).data
-        xSize, ySize = SizeDummy.shape[0], SizeDummy.shape[1]
-
-        self.ImageData = np.memmap('/tmp/memmap.npy', dtype='float32', mode='w+', shape=(len(self.Images), xSize, ySize))
-        for i, filename in enumerate(self.Images):
-            self.progressBar.setValue(i+1)
-            self.update()
-            self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
-        self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        #print(self.ImageData.shape[0])
-        self.progressBar.hide()
+        self.ImageData = d.data
+        self.Images = d.files
+        self.steps = d.steps
         self.imageRegion.setRegion((0, 1))
         self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
 
-
-
-
-    def loadFolderWithDark(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
-        self.Images = []
-        self.Images = np.sort(glob.glob(self.dir+'/*.cbf'))
-        self.Darks = [i for i in self.Images if 'dark' in i]
-        self.Images = [i for i in self.Images if 'dark' not in i]  # if there are dark images in the folder don't use them
-        self.Dark = None
-        if len(self.Darks) > 0:
-            self.Dark = np.flipud(fabio.open(self.Darks[0]).data)
-
-        if len(self.Images) == 0:
-            return 0
-        try:
-            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
-        except ValueError:
-            print('Slicing was not understood!')
-        try:
-            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
-        except ValueError:
-            self.steps = 1
-        # assert self._checkSize(self.Images, maxOccupation=.8), 'Memory exceeded'
-        self.progressBar.setMaximum(len(self.Images))
+    def loadEiger2(self):
+        d = dataClass()
+        fname = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *nexus)")[0][0]
+        self.progressBar.setMaximum(100)  # this has to be a larger integer
         self.progressBar.show()
-        SizeDummy = fabio.open(self.Images[0]).data
-        xSize, ySize = SizeDummy.shape[0], SizeDummy.shape[1]
-        # print(xSize, ySize)
-        self.statusLabel.setText('Loading %i images' % len(self.Images))
-        self.ImageData = np.zeros([len(self.Images), xSize, ySize])
-        for i, filename in enumerate(self.Images):
-            self.progressBar.setValue(i+1)
-            self.update()
-            if self.Dark is not None:
-                self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data).astype(np.float32)-self.Dark
-            else:
-                self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
-        self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        #print(self.ImageData.shape[0])
+        slicing = self.p.param('Actions', 'Slicing').value()
+        d.loadEiger2(fname=fname, slicing=slicing, callback=self.updateProgressBar)
         self.progressBar.hide()
+        self.ImageData = d.data
+        self.Images = d.files
+        self.steps = d.steps
         self.imageRegion.setRegion((0, 1))
+        #print(self.Images)
+        #print(self.imageRegion.bounds)
         self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
 
-    def loadFolderTif(self):
-        self.dir = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
-        self.Images = []
 
-        self.Images = np.sort(glob.glob(self.dir+'/*.tif'))
-        if len(self.Images) == 0:
-            return 0
-        try:
-            self.Images = eval('self.Images[%s]' % self.p.param('Actions', 'Slicing').value())
-        except ValueError:
-            print('Slicing was not understood!')
-        try:
-            self.steps = int(str(self.p.param('Actions', 'Slicing').value()).rpartition(':')[2])
-        except ValueError:
-            self.steps = 1
-        assert self._checkSize(self.Images, maxOccupation=.8), 'Memory exceeded'
-        self.progressBar.setMaximum(len(self.Images))
-        self.progressBar.show()
-        SizeDummy = fabio.open(self.Images[0]).data
-        xSize, ySize = SizeDummy.shape[0], SizeDummy.shape[1]
-        # print(xSize, ySize)
-        self.statusLabel.setText('Loading %i images' % len(self.Images))
-        self.ImageData = np.zeros([len(self.Images), xSize, ySize])
-        for i, filename in enumerate(self.Images):
-            self.progressBar.setValue(i+1)
-            self.update()
-            self.ImageData[i, :, :] = np.flipud(fabio.open(filename).data)
-        self.statusLabel.setText(str(len(self.Images)) + ' images loaded')
-        #print(self.ImageData.shape[0])
-        self.progressBar.hide()
+    def loadDataFile(self):
+        d = dataClass()
+        path = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *nexus)")[0][0]
+        d.loadFile(path=path)
+        self.ImageData = d.data
+        self.Images = d.files
         self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds((0, len(self.Images)))
+        self.imageRegion.setBounds((0, 1))
         self.updateRegion()
+
 
     '''
     def subtractDark(self):
@@ -284,11 +162,14 @@ class CBF(QWidget):
 
         params = [
             {'name': 'Actions', 'type': 'group', 'children': [
-                {'name': 'Load Image', 'type': 'action'},
-                {'name': 'Load Folder', 'type': 'action'},
-                {'name': 'Load Folder Mem', 'type': 'action'},
-                {'name': 'Load Folder WD', 'type': 'action'},
-                {'name': 'Load Folder tif', 'type': 'action'},
+                {'name': 'LoadDataFolder', 'type': 'action'},
+                {'name': 'LoadDataFile', 'type': 'action'},
+                {'name': 'Load Eiger2', 'type': 'action'},
+                #{'name': 'Load Image', 'type': 'action'},
+                #{'name': 'Load Folder', 'type': 'action'},
+                #{'name': 'Load Folder Mem', 'type': 'action'},
+                #{'name': 'Load Folder WD', 'type': 'action'},
+                #{'name': 'Load Folder tif', 'type': 'action'},
                 {'name': 'Slicing', 'type': 'str', 'value': '0:None:1', 'step': 1},
                 # {'name': 'Dark Image', 'type': 'action'},
                 # {'name': 'Mask Image', 'type': 'action'},
@@ -299,8 +180,8 @@ class CBF(QWidget):
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
-                {'name': 'autoColorscale', 'type': 'bool', 'value': False},
-                {'name': 'Line plots', 'type': 'list', 'values': ['None', 'line cut', 'ROI']},
+                {'name': 'autoColorscale', 'type': 'bool', 'value': self.autoColorscale},
+                {'name': 'Line plots', 'type': 'list', 'values': ['', 'line cut', 'ROI']},
                 {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (1, 4), 'visible': False},
                 # {'name': 'subtract_dark', 'type': 'bool', 'value': False},
             ]},
@@ -323,11 +204,14 @@ class CBF(QWidget):
             self.subtractDark()
 
         self.p = Parameter.create(name='params', type='group', children=params)
-        self.p.param('Actions', 'Load Image').sigActivated.connect(self.loadImage)
-        self.p.param('Actions', 'Load Folder').sigActivated.connect(self.loadFolder)
-        self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
-        self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
-        self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
+        self.p.param('Actions', 'LoadDataFolder').sigActivated.connect(self.loadDataFolder)
+        self.p.param('Actions', 'LoadDataFile').sigActivated.connect(self.loadDataFile)
+        self.p.param('Actions', 'Load Eiger2').sigActivated.connect(self.loadEiger2)
+        #self.p.param('Actions', 'Load Image').sigActivated.connect(self.loadImage)
+        #self.p.param('Actions', 'Load Folder').sigActivated.connect(self.loadFolder)
+        #self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
+        #self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
+        #self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
         self.p.param('Data Processing', 'imageNo').sigValueChanged.connect(self.changeImageNo)
         #self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
@@ -437,8 +321,6 @@ class CBF(QWidget):
     def prepImages(self):
         '''
         Transform images (works on the whole 3d image stack, where the 1st axis is the image no):
-            geometric
-        This transforms all images, which does not make sense at all!!!
         some source material:
             https://stackoverflow.com/questions/41309201/efficient-transformations-of-3d-numpy-arrays
         '''
