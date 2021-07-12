@@ -23,7 +23,7 @@ VERSION = {'major': 0, 'minor': 4}
 YEAR = 2021
 
 copyrightNotice = "\n\n    %s version %i.%i\n    Copyright (C) Hegedues %i\n\
-    This program comes with ABSOLUTELY NO WARRANTY; for details see the LICENSE."\
+    This program comes with ABSOLUTELY NO WARRANTY; for details see the LICENSE.\n"\
     % (NAME, VERSION['major'], VERSION['minor'], YEAR)
 
 #
