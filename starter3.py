@@ -38,6 +38,7 @@ from settings import baseFolder
 from dataClass import dataClass
 from aux import MemoryMonitorClass, DataLoadClass, DataGenerateClass, ImageData
 
+from qtrangeslider import QRangeSlider
 
 DIM = (500, 500)
 
@@ -72,18 +73,20 @@ class MainWindow(QtWidgets.QMainWindow):
         print(copyrightNotice)
         uic.loadUi('future.ui', self)
         self.setWindowTitle('%s %i.%i' % (NAME, VERSION['major'], VERSION['minor']+1))
-        self.setWindowIcon(QtGui.QIcon('icon/icon32.png'))
+        #self.setWindowIcon(QtGui.QIcon('icon/icon32.png'))
+
+        pg.setConfigOptions(imageAxisOrder='row-major')
 
         # GET THE DATA
         # self.imageData = ImageData(name='Set1')
         self.imageDataSet = ImageData()
-        self.showData = self.imageDataSet.plotData   # this works already, but there are too many implications later on, starting a new version!
+        self.showData = self.imageDataSet.plotData
 
-        self.Data = np.random.rand(50, DIM[0], DIM[1])
-        for i, im in enumerate(self.Data):
-            self.Data[i] = im + i
-        self.currentImage = 0
-        self.showData = self.Data[self.currentImage]
+        #self.Data = np.random.rand(50, DIM[0], DIM[1])
+        #for i, im in enumerate(self.Data):
+        #    self.Data[i] = im + i
+        #self.currentImage = 0
+        #self.showData = self.Data[self.currentImage]
         self.dark = np.ones(DIM)
         self.dark[:100, :100] = 2
         self.white = np.ones(DIM)
@@ -99,6 +102,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.PID = os.getpid()
         self.prepare()
 
+
+        #self.rslider = QRangeSlider()
+        #self.frame_2.addWidget(self.rslider)
 
 
 
@@ -116,13 +122,20 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.gridLayout.addWidget(plot, 0, 1)
 
         self.img.show()
-        self.checkBox_fixAspect.stateChanged.connect(self.fixingAspect)
+
 
         self.actionLight_Background.changed.connect(self.toggleBg)
 
+        # IMAGE
+        self.checkBox_fixAspect.stateChanged.connect(self.fixingAspect)
         self.checkBox_autoColor.setChecked(self.autoColorscale)
         self.checkBox_autoColor.stateChanged.connect(self.autoColorscaleSetter)
-
+        self.comboBox_transform.currentTextChanged.connect(self.updateImage)
+        self.checkBox_maskBelow.stateChanged.connect(self.updateImage)
+        #self.doubleSpinBox_maskBelow.editingFinished.connect(self.updateImage)  # would be more elegant, not emitted when the arrows are used
+        self.doubleSpinBox_maskBelow.valueChanged.connect(self.updateImage)
+        self.checkBox_maskAbove.stateChanged.connect(self.updateImage)
+        self.doubleSpinBox_maskAbove.valueChanged.connect(self.updateImage)
 
         self.hist = pg.HistogramLUTItem(image=self.img)
         self.glw.addItem(self.hist, row=0, col=2)
@@ -141,15 +154,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.spinBox_rangeFinish.setEnabled(False)
         # enable on ticking the box
         self.checkBox_useRange.stateChanged.connect(self.enableRange)
+        self.comboBox_filter.currentTextChanged.connect(self.updateImage)
 
-        # range slider
+
+        # RANGE SLIDER
         self.label_slider.setText('%5d' % self.horizontalSlider.value())
-        self.horizontalSlider.setMaximum(self.Data.shape[0]-1)
+        self.horizontalSlider.setMaximum(self.imageDataSet.data.shape[0]-1)
         self.horizontalSlider.valueChanged.connect(self.sliderChanged)
         self.horizontalSlider.valueChanged.connect(self.updateImage)
 
-
         self.spinBox_rangeStart.editingFinished.connect(self.imNoChanged)
+        self.spinBox_rangeFinish.editingFinished.connect(self.imNoChanged)
+
+        self.horizontalSlider_2.setMinimum(0)
+        self.horizontalSlider_2.setMaximum(self.imageDataSet.data.shape[0]-1)
+
+        self.horizontalSlider_2.hide()
+        self.label_rangeSlider.hide()
+        #self.label_rangeSlider.hide()
+        self.horizontalSlider_2.valueChanged.connect(self.rangeSliderChanged)
+        self.horizontalSlider_2.valueChanged.connect(self.updateImage)
 
 
         # TOOLBOX
@@ -168,7 +192,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
         # STATUS BAR SETTINGS
-        self.statusBar().showMessage('Loaded %d images' % self.Data.shape[0])
+
+        #self.statusBar().showMessage('Loaded %d images' % self.Data.shape[0])!!!
+        self.statusBar().showMessage('Loaded %d images' % self.imageDataSet.data.shape[0])
         self.statusUsageLabel = QLabel()
         self.statusBar().addPermanentWidget(self.statusUsageLabel)
 
@@ -199,14 +225,30 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.actionLoad_Dummy.triggered.connect(self.loadWithClass)
 
+
+        self.horizontalSlider_3.setMinimum(0)
+        self.horizontalSlider_3.setMaximum(50)
+        self.horizontalSlider_3.setValue((0,))
+        self.horizontalSlider_3.valueChanged.connect(self.rangeSliderChanged2)
+        self.horizontalSlider_3.valueChanged.connect(self.updateImage)
+
+
+
     def loadWithClass(self):
         self.imageDataSet.generate()
+
 
 
     def loadWithClassResult(self):
         print('Finished data geneartion with new class: %s' % self.imageDataSet.name)
         print('Genarated data dimensions:')
         print(self.imageDataSet.data.shape)
+        self.horizontalSlider.setMaximum(self.imageDataSet.data.shape[0]-1)
+        self.horizontalSlider_2.setMaximum(self.imageDataSet.data.shape[0]-1)
+
+        self.horizontalSlider_3.setMaximum(self.imageDataSet.data.shape[0]-1)
+
+        self.updateImage()
 
 
     def loadThreadPool(self):
@@ -325,9 +367,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.label_rangeStart.setText('From')
             self.label_rangeFinish.show()
             self.spinBox_rangeStart.setEnabled(True)
+            self.spinBox_rangeFinish.setEnabled(True)
 
-            # self.horizontalSlider.show()
-            # self.frame_2.show()
+            #self.horizontalSlider.hide()
+            #self.label_slider.hide()
+            self.horizontalSlider_2.setValue(self.imageDataSet.data.shape[0]-self.horizontalSlider.value()-1)
+            self.horizontalSlider_2.show()
+            self.label_rangeSlider.show()
+
+            self.horizontalSlider_3.setValue((self.horizontalSlider.value()-3, self.horizontalSlider.value()+3))
+            self.horizontalSlider_3.show()
+
         else:
             self.label_rangeFilter.setEnabled(False)
             self.comboBox_filter.setEnabled(False)
@@ -335,18 +385,36 @@ class MainWindow(QtWidgets.QMainWindow):
             self.label_rangeFinish.hide()
             self.spinBox_rangeFinish.setEnabled(False)
             self.spinBox_rangeFinish.setValue(0)
-            # self.horizontalSlider.hide()
-            # self.frame_2.hide()
+
+            self.horizontalSlider_2.hide()
+            self.label_rangeSlider.hide()
+
+            self.horizontalSlider_3.hide()
+
+    def rangeSliderChanged2(self):
+        self.spinBox_rangeStart.setValue(self.horizontalSlider_3.value()[0])
+        if self.checkBox_useRange.isChecked():
+            self.spinBox_rangeFinish.setValue(self.horizontalSlider_3.value()[1])
+        else:
+            self.spinBox_rangeFinish.setValue(0)
+
 
     def sliderChanged(self):
         self.spinBox_rangeStart.setValue(self.horizontalSlider.value())
-        if self.checkBox_useRange.isChecked():
-            self.spinBox_rangeFinish.setValue(self.horizontalSlider.value())
-        else:
+        if not self.checkBox_useRange.isChecked():
             self.spinBox_rangeFinish.setValue(0)
         self.label_slider.setText('%5d' % self.horizontalSlider.value())
+        if self.imageDataSet.data.shape[0]-self.horizontalSlider_2.value()-1 < self.horizontalSlider.value():
+            self.horizontalSlider_2.setValue(self.imageDataSet.data.shape[0]-self.horizontalSlider.value()-1)
         # self.currentImage = self.horizontalSlider.value()
         # self.showData = self.Data[self.currentImage]
+
+    def rangeSliderChanged(self):
+        self.spinBox_rangeFinish.setValue(self.imageDataSet.data.shape[0]-self.horizontalSlider_2.value()-1)
+        self.label_rangeSlider.setText('%5d' % (self.imageDataSet.data.shape[0]-self.horizontalSlider_2.value()-1))
+        if self.imageDataSet.data.shape[0]-self.horizontalSlider_2.value()-1 < self.horizontalSlider.value():
+            self.horizontalSlider.setValue(self.imageDataSet.data.shape[0]-self.horizontalSlider_2.value()-1)
+
 
     def getCurrentImage(self):
         '''
@@ -358,42 +426,64 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def imNoChanged(self):
         self.horizontalSlider.setValue(self.spinBox_rangeStart.value())
+        self.horizontalSlider_2.setValue(self.imageDataSet.data.shape[0]-1-self.spinBox_rangeFinish.value())
         # automatically calls self.sliderChanged
 
-    def backgroundCorrection(self):
-        if self.checkBox_subtract.isChecked() and self.checkBox_divide.isChecked():
-            try:
-                divider = self.white-self.dark
-                divider[divider == 0] = 0.1
-                self.showData = (self.showData-self.dark) / divider
-            except ValueError:
-                print('Division with zero!')
-        elif self.checkBox_subtract.isChecked() and not self.checkBox_divide.isChecked():
-            self.showData = self.showData-self.dark
-        elif not self.checkBox_subtract.isChecked() and self.checkBox_divide.isChecked():
-            self.showData = self.showData / self.white
-        else:
-            pass
+    # def backgroundCorrection(self):
+    #     if self.checkBox_subtract.isChecked() and self.checkBox_divide.isChecked():
+    #         try:
+    #             divider = self.white-self.dark
+    #             divider[divider == 0] = 0.1
+    #             self.showData = (self.showData-self.dark) / divider
+    #         except ValueError:
+    #             print('Division with zero!')
+    #     elif self.checkBox_subtract.isChecked() and not self.checkBox_divide.isChecked():
+    #         self.showData = self.showData-self.dark
+    #     elif not self.checkBox_subtract.isChecked() and self.checkBox_divide.isChecked():
+    #         self.showData = self.showData / self.white
+    #     else:
+    #         pass
 
-    def filterImages(self, ims):
-        '''
-        max or average filtering of an image range 
-        so far it is done in the self.updateRegion function
-        ims is the array of images to filter
-        '''
-        if self.currentFilter == 'average':
-            self.showData = np.mean(ims, axis=0)
-        elif self.currentFilter == 'max':
-            self.showData = np.maximum.reduce(ims, axis=0)
+    # def filterImages(self, ims):
+    #     '''
+    #     max or average filtering of an image range 
+    #     so far it is done in the self.updateRegion function
+    #     ims is the array of images to filter
+    #     '''
+    #     if self.currentFilter == 'average':
+    #         self.showData = np.mean(ims, axis=0)
+    #     elif self.currentFilter == 'max':
+    #         self.showData = np.maximum.reduce(ims, axis=0)
 
 
 
     def updateImage(self):
         autoscale = self.checkBox_autoColor.isChecked()
-        self.showData = self.Data[self.getCurrentImage()]
+        useRange = self.checkBox_useRange.isChecked()
+        background = (self.checkBox_subtract.isChecked(), self.checkBox_divide.isChecked())
 
-        #self.getCurrentImage()
-        self.backgroundCorrection()
+        below, above = None, None
+        if self.checkBox_maskBelow.isChecked():
+            below = self.doubleSpinBox_maskBelow.value()
+        if self.checkBox_maskAbove.isChecked():
+            above = self.doubleSpinBox_maskAbove.value()
+        mask = (below, above)
+        tr = self.comboBox_transform.currentText()
+        filt = self.comboBox_filter.currentText()
+
+        imRange = self.horizontalSlider_3.value()
+        self.imageDataSet.getPlotData(imRange=imRange, background=background, mask=mask, transformation=tr, filt=filt)
+
+        # if useRange:
+        #     imRange = (self.horizontalSlider.value(), self.imageDataSet.data.shape[0]-1-self.horizontalSlider_2.value())
+        #     self.imageDataSet.getPlotData(imRange=imRange, background=background, mask=mask, transformation=tr, filt=filt)
+        # else:
+        #     imNo = (self.horizontalSlider.value(), self.horizontalSlider.value())
+        #     self.imageDataSet.getPlotData(imRange=imNo, background=background, mask=mask, transformation=tr, filt=filt)
+
+        self.showData = self.imageDataSet.plotData
+
+        #self.backgroundCorrection()
         self.img.setImage(self.showData, autoLevels=autoscale)
         self.img.show()
 
