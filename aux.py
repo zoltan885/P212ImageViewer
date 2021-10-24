@@ -43,11 +43,11 @@ class MemoryMonitorClass(QObject):
             if memoryThis0 > 1000:
                 memoryThis0 = memoryThis0/1000.
                 memunit = 'GB'
-            label = 'PID: %d;  %.1f %s;  free mem: %.1f%%;  cpu %.1f%%' % \
+            label = 'PID: %d;  %.1f %s;  free mem: %.1f%%;  cpu: %3.1f%%' % \
                 (os.getpid(), memoryThis0, memunit, 100-memoryPerc, cpuPerc)
             self.usageSignal.emit(label)
             #self.memorySignal.emit(memoryThis0, memoryPerc, cpuPerc)
-            time.sleep(0.5)
+            time.sleep(1)
 
 
 # class DataLoadClass(QObject):
@@ -82,7 +82,7 @@ class DataLoadSignals(QObject):
     result: object data returned from processing, anything
     progress: int indicating % progress
     '''
-    started = pyqtSignal()
+    started = pyqtSignal(bool)   # in principle no type should be defined, but then it does not work
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
     names = pyqtSignal(str, object)  # setName, filenames-list
@@ -132,9 +132,10 @@ class loadFolderClass(QRunnable):
         self.chunkSize = chunkSize
         self.multiTypes = ['cbf', 'tif']
         self.slicing = slicing
-        self.setName = ''
+        self.nameOfSet = ''
         self.names = []
         self.signals = DataLoadSignals()
+        print('Data load signals added to loadFolderClass')
 
 
     @pyqtSlot()
@@ -157,11 +158,12 @@ class loadFolderClass(QRunnable):
         else:
             self.files = files[list(files.keys())[0]]  # self.files should be a simple list of a single file type
 
-        self.setName = self.loadPath.rpartition('/')[2]
+        self.nameOfSet = self.loadPath.rpartition('/')[2]
         self.names = [f.rpartition("/")[2] for f in files]
-        self.signals.names.emit(self.setName, self.names)
+        self.signals.names.emit(self.nameOfSet, self.names)
 
-        self.signals.started.emit()
+        self.signals.started.emit(True)
+        print('Folder loading started')
         # noFullChunks = len(self.files)//self.chunkSize
         # restChunk = len(self.files)%self.chunkSize
 
@@ -169,7 +171,6 @@ class loadFolderClass(QRunnable):
         dataChunk = np.zeros([self.chunkSize, xSize, ySize])
         print('So far so good...')
         for i, fn in enumerate(self.files):
-            print(i)
             # EMIT FULL CHUNKS
             if i % self.chunkSize == 0:
                 if i > 0:
@@ -237,7 +238,7 @@ class ImageData():
         '''
         load an entire folder
         '''
-        self.dataFolderLoad = loadFolderClass('/home/zoltan/Documents/code_snippets/multisource/PEt/')
+        #self.dataFolderLoad = loadFolderClass('/home/zoltan/Documents/code_snippets/multisource/PEt/')
         self.threadpool = QThreadPool()
         self.dataFolderLoad.signals.result.connect(self._loadChunk)
         self.dataFolderLoad.signals.names.connect(self._getNames)
