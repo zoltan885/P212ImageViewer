@@ -96,7 +96,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         print(copyrightNotice)
-        uic.loadUi('future3a.ui', self)
+        uic.loadUi('future3b.ui', self)
         self.setWindowTitle('%s %i.%i' % (NAME, VERSION['major'], VERSION['minor']+1))
         # self.setWindowIcon(QtGui.QIcon('icon/icon32.png'))
 
@@ -104,8 +104,8 @@ class MainWindow(QtWidgets.QMainWindow):
 #        pg.setConfigOption('useNumba', True)  # probably too new!
 
         # GET THE DATA
-        # self.imageData = ImageData(name='Set1')
-        self.imageDataSet = ImageData()
+        self.imageDataSet = ImageData(name='Set1')
+        #self.imageDataSet = ImageData()
         self.showData = self.imageDataSet.plotData
 
         #self.Data = np.random.rand(50, DIM[0], DIM[1])
@@ -195,7 +195,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # RANGE SLIDER
         self.horizontalSlider.setMinimum(0)
         self.horizontalSlider.setMaximum(1)  # this is kind of a placeholder
-        self.horizontalSlider.setValue((0,))
+        self.horizontalSlider.setValue(0)
         self.horizontalSlider.valueChanged.connect(self.sliderChanged)
         self.horizontalSlider.valueChanged.connect(self.updateImage)
         self.horizontalSlider.hide()
@@ -275,7 +275,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def generateWithClass(self):
-        self.tabWidget.setTabText(0, self.imageDataSet.name)
+        self.tabWidget.setTabText(0, self.imageDataSet.setName)
         self.tabWidget.addTab(tabContent(dataClass=self.imageDataSet), 'new tab')
         self.imageDataSet.dataGenerate.signals.started.connect(self.addProgressBar)
         self.imageDataSet.dataGenerate.signals.progress.connect(self.updateProgressBar)

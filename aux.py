@@ -214,7 +214,7 @@ class ImageData():
         else:
             self.setName = 'dataset_' + str(np.random.randint(1e5, 1e6))
         self.dataGenerate = DataGenerateClass(size=110)  # this has to be stared later
-        self.dataFolderLoad = loadFolderClass('/home/zoltan/Documents/code_snippets/multisource/PEt')
+        self.dataFolderLoad = loadFolderClass('/home/hegedues/Documents/snippets/multisource/1')
 
         self.subtract = np.ones((600,400))
         self.subtract[:100, :100] = 2

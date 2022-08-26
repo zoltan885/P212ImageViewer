@@ -24,7 +24,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QLabeledRangeSlider" name="rangeSlider">
+    <widget class="RangeSlider" name="rangeSlider">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
@@ -40,7 +40,7 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QLabeledRangeSlider</class>
+   <class>RangeSlider</class>
    <extends>QSlider</extends>
    <header location="global">qtrangeslider</header>
   </customwidget>

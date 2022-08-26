@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1218</width>
-    <height>998</height>
+    <width>1221</width>
+    <height>900</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -532,8 +532,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>262</width>
-                <height>66</height>
+                <width>240</width>
+                <height>70</height>
                </rect>
               </property>
               <layout class="QFormLayout" name="formLayout_4">
@@ -614,7 +614,7 @@
        <property name="tabBarAutoHide">
         <bool>true</bool>
        </property>
-       <widget class="QWidget" name="Data1" native="true">
+       <widget class="QWidget" name="Data1">
         <attribute name="title">
          <string>Data1</string>
         </attribute>
@@ -679,7 +679,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QLabeledRangeSlider" name="horizontalSlider">
+          <widget class="RangeSlider" name="horizontalSlider">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
@@ -697,8 +697,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1218</width>
-     <height>23</height>
+     <width>1221</width>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -925,7 +925,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Visible Image Manipulation</string>
+    <string>Image Manipulation</string>
    </property>
   </action>
   <action name="actionLoad_Dummy">
@@ -954,7 +954,7 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QLabeledRangeSlider</class>
+   <class>RangeSlider</class>
    <extends>QSlider</extends>
    <header location="global">qtrangeslider</header>
   </customwidget>
