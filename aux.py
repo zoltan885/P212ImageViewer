@@ -43,8 +43,8 @@ class MemoryMonitorClass(QObject):
             if memoryThis0 > 1000:
                 memoryThis0 = memoryThis0/1000.
                 memunit = 'GB'
-            label = 'PID: %d;  %.1f %s;  free mem: %.1f%%;  cpu: %3.1f%%' % \
-                (os.getpid(), memoryThis0, memunit, 100-memoryPerc, cpuPerc)
+            label = 'cpu: %5.1f%%; %.1f %s;  free mem: %.1f%%; PID: %d' % \
+                (cpuPerc, memoryThis0, memunit, 100-memoryPerc, os.getpid())
             self.usageSignal.emit(label)
             #self.memorySignal.emit(memoryThis0, memoryPerc, cpuPerc)
             time.sleep(1)

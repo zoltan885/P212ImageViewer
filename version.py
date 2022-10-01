@@ -19,7 +19,7 @@
 
 
 NAME = 'P21.2 ImageViewer'
-VERSION = {'major': 0, 'minor': 4}
+VERSION = {'major': 0, 'minor': 4, 'patch': 0}
 YEAR = 2021
 
 copyrightNotice = "\n\n    %s version %i.%i\n    Copyright (C) Hegedues %i\n\
