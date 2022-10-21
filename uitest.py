@@ -6,23 +6,33 @@ Created on Fri Sep 30 19:20:34 2022
 @author: hegedues
 """
 
+'''
+Advanced docking:
+    https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System
+    https://github.com/KDAB/KDDockWidgets
+'''
+
+
+
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtCore import QThread, Qt
 from PyQt5.QtWidgets import QLabel, QProgressBar
-from PyQt5.QtGui import QTransform
+
 
 #from pyqtgraph import PlotWidget
 import pyqtgraph as pg
 import sys, os
 import numpy as np
 import time
+import argparse
 #import psutil, resource, time
 
 
 from version import NAME, VERSION, copyrightNotice
 from settings import baseFolder
 #from dataClass import dataClass
-from aux import MemoryMonitorClass, ImageData
+from aux import MemoryMonitorClass
+
 from plotarea import plotArea
 from tabcontent import tabContent
 
@@ -35,6 +45,17 @@ class MainWindow(QtWidgets.QMainWindow):
         uic.loadUi('future4.ui', self)
         self.setWindowTitle('%s %i.%i' % (NAME, VERSION['major'], VERSION['minor']+1))
         self._addStatusBar()
+        self._addMenu()
+
+        self._addSignals()
+
+        self.data = []
+
+
+
+    def _addMenu(self):
+        self.actionQuit.triggered.connect(self.leaveProgram)
+        #self.actionLoad_Dummy.triggered.connect(self.generateWithClass)
 
 
 
@@ -50,11 +71,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.memoryMonitor.usageSignal.connect(self.showUsage)
         self.memthread.start()
 
+    def _addSignals(self):
+        sigs = self.tabWidget.currentWidget().plotArea.data.generator
+        sigs.started.connect(self._signalTester)
+        sigs.started.connect(self._addProgressBar)
+        sigs.progress.connect(self._updateProgressBar)
+        sigs.finished.connect(self._removeProgressBar)
+
+
     def showUsage(self, label):
         self.statusUsageLabel.setText(label)
 
 
-    # This is a quick testing function
+
+    # This is for quick functionality testing
     def keyPressEvent(self, event):
         w = self.tabWidget.currentWidget()
         if event.modifiers() & Qt.ControlModifier:
@@ -73,31 +103,45 @@ class MainWindow(QtWidgets.QMainWindow):
             elif event.key() == Qt.Key_D:
                 print('Disable ImageToolbar')
                 w._disableAll()
+            elif event.key() == Qt.Key_W:
+                print('\'OPEN\'')
+                w.plotArea._generateImgData('d')
+            elif event.key() == Qt.Key_T:
+                w.plotArea._transform()
 
+
+    def _signalTester(self):
+        print('I got a signal')
 
     def testProgressBar(self):
         t0 = time.time()
-        self.addProgressBar()
+        self._addProgressBar()
         dt = 3.
         while time.time() - t0 < dt:
-            self.updateProgressBar(int((time.time() - t0)/dt*100))
-        self.updateProgressBar(100)
+            self._updateProgressBar(int((time.time() - t0)/dt*100))
+        self._updateProgressBar(100)
         time.sleep(1)
-        self.removeProgressBar()
+        self._removeProgressBar()
 
 
-    def addProgressBar(self):
+    def _addProgressBar(self):
         print('Adding progress bar')
         self.progressBar = QProgressBar()
         self.progressBar.setValue(0)
         self.statusBar().insertPermanentWidget(0, self.progressBar)
 
-    def removeProgressBar(self):
+    def _removeProgressBar(self):
         self.statusBar().removeWidget(self.progressBar)
 
-    def updateProgressBar(self, progress):
+    def _updateProgressBar(self, progress):
         self.progressBar.setValue(progress)
 
+
+
+
+    def leaveProgram(self):
+        print('bye')
+        sys.exit()
 
 
 

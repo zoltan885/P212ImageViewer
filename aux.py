@@ -17,6 +17,17 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+
+'''
+QThread vs. QRunnable
+https://www.toptal.com/qt/qt-multithreading-c-plus-plus
+https://realpython.com/python-pyqt-qthread/
+
+
+
+'''
+
+
 from PyQt5.QtCore import QObject, pyqtSignal, QRunnable, pyqtSlot, QThreadPool
 import psutil, time
 import numpy as np
@@ -82,7 +93,7 @@ class DataLoadSignals(QObject):
     result: object data returned from processing, anything
     progress: int indicating % progress
     '''
-    started = pyqtSignal(bool)   # in principle no type should be defined, but then it does not work
+    started = pyqtSignal()   # for earlier version this had to be (bool), not anymore
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
     names = pyqtSignal(str, object)  # setName, filenames-list
@@ -102,6 +113,7 @@ class DataGenerateClass(QRunnable):
         self.kwargs = kwargs
         self.size = self.kwargs['size']
         self.signals = DataLoadSignals()
+        print('Data load signals added to DataGenerateClass')
 
         #self.kwargs['progress'] = self.signals.progress
 
@@ -110,16 +122,20 @@ class DataGenerateClass(QRunnable):
         bunch = 10
         noBunch = self.size//bunch  # only generates multiples of bunch, but this is only a test function
         self.signals.started.emit()
+        print('start signal emitted')
         for s in range(noBunch):
             d = np.random.rand(bunch, 600, 400)
             for i,im in enumerate(d):
                 d[i] = im + (i+s*bunch)/5.
                 self.signals.progress.emit(int(100*(s*bunch+(i+1))/(noBunch*bunch)))
                 #time.sleep(0.1)
+                if i%10==0:
+                    print('progress signal emitted: %.2f' % int(100*(s*bunch+(i+1))/(noBunch*bunch)))
             self.signals.result.emit(d)
             #time.sleep(1)
 
         self.signals.finished.emit()
+        print('Finish signal emitted')
 
 
 class loadFolderClass(QRunnable):
@@ -229,10 +245,12 @@ class ImageData():
         test function to load data with QThreadPool
         this has to be exchanged to a load function!
         '''
+        print('here we go')
         self.dataGenerate = DataGenerateClass(size=110)
         self.threadpool = QThreadPool()
         self.dataGenerate.signals.result.connect(self._loadChunk)
         self.threadpool.start(self.dataGenerate)
+        print('finished')
 
     def loadFolder(self):
         '''

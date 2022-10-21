@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>647</width>
+    <height>516</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -25,7 +25,7 @@
      <property name="handleWidth">
       <number>6</number>
      </property>
-     <widget class="GraphicsLayoutWidget" name="GrphicsLayoutWidget" native="true">
+     <widget class="GraphicsLayoutWidget" name="plot2dWidget" native="true">
       <property name="minimumSize">
        <size>
         <width>300</width>
@@ -39,7 +39,7 @@
        </size>
       </property>
      </widget>
-     <widget class="GraphicsLayoutWidget" name="GrphicsLayoutWidget1D" native="true">
+     <widget class="GraphicsLayoutWidget" name="plot1dWidget" native="true">
       <property name="minimumSize">
        <size>
         <width>0</width>

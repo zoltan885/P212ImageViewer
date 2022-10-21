@@ -3,7 +3,15 @@
 """
 Created on Fri Sep 30 18:07:35 2022
 
-@author: drIDK
+@author: drIDK, hegedues
+
+the orignal range slider was updated such the it could mimic a simple slider (only a single handle)
+without highlighting any range
+
+
+Imlement label next to slider handle
+https://forum.qt.io/topic/44417/placing-a-label-next-to-a-slider-handle
+
 """
 
 from PyQt5.QtWidgets import *
@@ -63,34 +71,36 @@ class RangeSlider(QSlider):
         #   Draw GROOVE
         self.style().drawComplexControl(QStyle.CC_Slider, self.opt, painter)
         #  Draw INTERVAL
-        color = self.palette().color(QPalette.Highlight)
-        color.setAlpha(160)
-        painter.setBrush(QBrush(color))
-        painter.setPen(Qt.NoPen)
-        self.opt.sliderPosition = self.first_position
-        x_left_handle = (self.style()
-            .subControlRect(QStyle.CC_Slider, self.opt, QStyle.SC_SliderHandle)
-            .right())
-        self.opt.sliderPosition = self.second_position
-        x_right_handle = (self.style()
-            .subControlRect(QStyle.CC_Slider, self.opt, QStyle.SC_SliderHandle)
-            .left())
-        groove_rect = self.style().subControlRect(
-            QStyle.CC_Slider, self.opt, QStyle.SC_SliderGroove)
-        selection = QRect(
-            x_left_handle,
-            groove_rect.y(),
-            x_right_handle - x_left_handle,
-            groove_rect.height(),
-        ).adjusted(-1, 1, 1, -1)
-        painter.drawRect(selection)
+        if self.useRange:
+            color = self.palette().color(QPalette.Highlight)
+            color.setAlpha(160)
+            painter.setBrush(QBrush(color))
+            painter.setPen(Qt.NoPen)
+            self.opt.sliderPosition = self.first_position
+            x_left_handle = (self.style()
+                .subControlRect(QStyle.CC_Slider, self.opt, QStyle.SC_SliderHandle)
+                .right())
+            self.opt.sliderPosition = self.second_position
+            x_right_handle = (self.style()
+                .subControlRect(QStyle.CC_Slider, self.opt, QStyle.SC_SliderHandle)
+                .left())
+            groove_rect = self.style().subControlRect(
+                QStyle.CC_Slider, self.opt, QStyle.SC_SliderGroove)
+            self.selection = QRect(  # this went into the global namespace so that later it may be grabbed
+                x_left_handle,
+                groove_rect.y(),
+                x_right_handle - x_left_handle,
+                groove_rect.height(),
+            ).adjusted(-1, 1, 1, -1)
+            painter.drawRect(self.selection)
         # Draw first handle
         self.opt.subControls = QStyle.SC_SliderHandle
         self.opt.sliderPosition = self.first_position
         self.style().drawComplexControl(QStyle.CC_Slider, self.opt, painter)
         # Draw second handle
-        self.opt.sliderPosition = self.second_position
-        self.style().drawComplexControl(QStyle.CC_Slider, self.opt, painter)
+        if self.useRange:
+            self.opt.sliderPosition = self.second_position
+            self.style().drawComplexControl(QStyle.CC_Slider, self.opt, painter)
 
     def mousePressEvent(self, event: QMouseEvent):
         self.opt.sliderPosition = self.first_position

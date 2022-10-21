@@ -33,7 +33,6 @@ import time
 from settings import *
 
 
-
 class dataClass():
     def __init__(self, *args):
         self.data = np.zeros((500, 500))
