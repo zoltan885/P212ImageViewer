@@ -97,7 +97,7 @@ class CBF(QWidget):
 
 
     def updateProgressBar(self, r):
-        self.progressBar.setValue(100.*r)
+        self.progressBar.setValue(int(100*r))
 
 
     def loadDataFolder(self):
@@ -606,8 +606,10 @@ class CBF(QWidget):
         self.imgLeft.show()
         self.imageRegion.setBounds = ([0, self.ImageData.shape[0]])
         self.imgLeft.resetTransform()
-        self.p3.getAxis('bottom').setScale(None)
-        self.p3.getAxis('left').setScale(None)
+        #self.p3.getAxis('bottom').setScale(None)
+        #self.p3.getAxis('left').setScale(None)
+        self.p3.getAxis('bottom').enableAutoSIPrefix(True)
+        self.p3.getAxis('left').enableAutoSIPrefix(True)
         self.p3.getAxis('bottom').setGrid(0)
         self.p3.getAxis('left').setGrid(0)
 
