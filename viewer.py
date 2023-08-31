@@ -57,7 +57,7 @@ class CBF(QWidget):
     def __init__(self, *args):
         super().__init__()
         print(copyrightNotice)
-        self.title = '%s %i.%i' % (NAME, VERSION['major'], VERSION['minor'])
+        self.title = '%s %i.%i.%i' % (NAME, VERSION['major'], VERSION['minor'], VERSION['patch'])
         self.Images = []  # np.zeros((1,100, 100))
         # self.showData = self.Images[0]
         # self.ImageData = self.Images[0]
