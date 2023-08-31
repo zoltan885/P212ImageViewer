@@ -19,19 +19,23 @@
 
 
 NAME = 'P21.2 ImageViewer'
-VERSION = {'major': 0, 'minor': 4}
+VERSION = {'major': 0, 'minor': 4, 'patch': 1}
 YEAR = 2021
 
-copyrightNotice = "\n\n    %s version %i.%i\n    Copyright (C) Hegedues %i\n\
+copyrightNotice = "\n\n    %s version %i.%i.%i\n    Copyright (C) Hegedues %i\n\
     This program comes with ABSOLUTELY NO WARRANTY; for details see the LICENSE."\
-    % (NAME, VERSION['major'], VERSION['minor'], YEAR)
+    % (NAME, VERSION['major'], VERSION['minor'], VERSION['patch'], YEAR)
 
 #
 changelog ={
     'version 0.4': [
         'Added Eiger2 hdf support'
         ],
-
+    'version 0.4.1': [
+        'Fixed deprecation warning from pyqtgraph',
+        'Fixed single image load',
+        'Fixed cursor hover value',
+    ],
 
 
     }
