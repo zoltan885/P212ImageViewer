@@ -306,11 +306,10 @@ class CBF(QWidget):
         if len(self.ImageData.shape) == 3:
             i = int(np.clip(i, 0, self.ImageData.shape[1] - 1))
             j = int(np.clip(j, 0, self.ImageData.shape[2] - 1))
-            val = np.mean(self.ImageData[self.currentImage[0]:self.currentImage[1], i, j])
         elif len(self.ImageData.shape) == 2:
             i = int(np.clip(i, 0, self.ImageData.shape[0] - 1))
             j = int(np.clip(j, 0, self.ImageData.shape[1] - 1))
-            val = self.ImageData[i, j]
+        val = self.showData[i, j]
         # self.p3.setTitle("pixel: (%d, %d), value: %.1f" % (i, j, val))
         self.LabelL.setText("pixel: (%d, %d), value: %.1f" % (i, j, val))
 
@@ -409,14 +408,14 @@ class CBF(QWidget):
 
     def filterImages(self, ims):
         '''
-        max or average filtering of an image range 
-        so far it is done in the self.updateRegion function
+        max or average filtering of an image range
         ims is the array of images to filter
         '''
         if self.currentFilter == 'average':
             filteredData = np.mean(ims, axis=0)
         elif self.currentFilter == 'max':
-            filteredData = np.maximum.reduce(ims, axis=0)
+            #filteredData = np.maximum.reduce(ims, axis=0)
+            filteredData = np.amax(ims, axis=0)  # the two seems to be equivalent, and same speed
         return filteredData
 
     def show1DPlotWindow(self):
