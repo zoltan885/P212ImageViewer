@@ -108,6 +108,7 @@ class CBF(QWidget):
         slicing = self.p.param('Actions', 'Slicing').value()
         d.loadFolder(path=path, slicing=slicing, callback=self.updateProgressBar)
         self.progressBar.hide()
+        self.statusLabel.setText('%d images loaded' % d.data.shape[0])
         self.ImageData = d.data
         self.Images = d.files
         self.steps = d.steps
