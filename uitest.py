@@ -99,7 +99,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 w.showImageToolbar()
             elif event.key() == Qt.Key_A:
                 print('Enable ImageToolbar')
-                w._enableUponDataPresent()
+                w._enableUponDataPresent(110)
             elif event.key() == Qt.Key_D:
                 print('Disable ImageToolbar')
                 w._disableAll()
