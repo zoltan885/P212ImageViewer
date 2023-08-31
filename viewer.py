@@ -303,9 +303,14 @@ class CBF(QWidget):
             return
         pos = event.pos()
         i, j = pos.y(), pos.x()
-        i = int(np.clip(i, 0, self.ImageData.shape[1] - 1))
-        j = int(np.clip(j, 0, self.ImageData.shape[2] - 1))
-        val = np.mean(self.ImageData[self.currentImage[0]:self.currentImage[1], i, j])
+        if len(self.ImageData.shape) == 3:
+            i = int(np.clip(i, 0, self.ImageData.shape[1] - 1))
+            j = int(np.clip(j, 0, self.ImageData.shape[2] - 1))
+            val = np.mean(self.ImageData[self.currentImage[0]:self.currentImage[1], i, j])
+        elif len(self.ImageData.shape) == 2:
+            i = int(np.clip(i, 0, self.ImageData.shape[0] - 1))
+            j = int(np.clip(j, 0, self.ImageData.shape[1] - 1))
+            val = self.ImageData[i, j]
         # self.p3.setTitle("pixel: (%d, %d), value: %.1f" % (i, j, val))
         self.LabelL.setText("pixel: (%d, %d), value: %.1f" % (i, j, val))
 
@@ -618,17 +623,17 @@ class CBF(QWidget):
         fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
         toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
 
-        if len(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :]) > 0:
+        if len(self.ImageData.shape) == 3 and len(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :]) > 0:
             self.showData = self.filterImages(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :])
             self.showData = self.maskValsAbove(self.showData)
             self.showData = self.prepFinalImage(self.showData)
-
-            if self.autoColorscale:
-                self.imgLeft.setImage(self.showData, autoLevels=True)
-            else:
-                self.imgLeft.setImage(self.showData, autoLevels=False)
         else:
-            self.showData = self.ImageData[0]
+            self.showData = self.ImageData
+
+        if self.autoColorscale:
+            self.imgLeft.setImage(self.showData, autoLevels=True)
+        else:
+            self.imgLeft.setImage(self.showData, autoLevels=False)
         # self.statusLabel.setText('Updating isoline to %.1f' % self.p.param('Iso Line', 'iso').value())
         # self.progressBar.setMaximum(2)
         # self.progressBar.show()
