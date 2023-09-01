@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/hegedues/anaconda3/envs/pyqtgraph/bin/python3
 # -*- coding: utf-8 -*-
 """
     Copyright (C) 2021 Hegedues
@@ -214,7 +214,7 @@ class CBF(QWidget):
         #self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
         #self.p.param('Actions', 'Load Folder tif').sigActivated.connect(self.loadFolderTif)
         self.p.param('Data Processing', 'imageNo').sigValueChanged.connect(self.changeImageNo)
-        #self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)
+        #self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)   ## testing
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
@@ -480,7 +480,21 @@ class CBF(QWidget):
     def addROI(self):
         # add roi to ROIS, add to calculated areas, add to 1dplot, add signal
         n = len(self.ROIs)
-        self.ROIs.append(pg.ROI([100, 300], [100, 100], pen=self.roiColors[n], invertible=True))
+
+        #viewRange = self.p3.viewRange()
+        #print(viewRange)
+        #w = abs(viewRange[0][1] - viewRange[0][0])
+        #print(w)
+        #h = abs(viewRange[1][1] - viewRange[1][0])
+        #print(h)
+        #x0 = viewRange[0][0] + 0.1*w
+        #print(x0)
+        #y0 = viewRange[1][0] + 0.1*h
+        #print(y0)
+        #self.ROIs.append(pg.ROI([x0, y0], [0.1*w, 0.1*h], pen=self.roiColors[n], invertible=True))  ## testing
+
+        self.ROIs.append(pg.ROI([100, 100], [100, 100], pen=self.roiColors[n], invertible=True))
+        
         self.ROIs[n].addScaleHandle([0.5, 1], [0.5, 0.5])
         self.ROIs[n].addScaleHandle([1, 0.5], [0.5, 0.5])
         self.p3.addItem(self.ROIs[n])
@@ -556,7 +570,16 @@ class CBF(QWidget):
     def ROIChanged(self):
         for i, roi in enumerate(self.ROIs):
             roicurve = [np.sum(roi.getArrayRegion(self.ImageData[imno,:,:], self.imgLeft)) for imno in range(self.ImageData.shape[0])]
+            _, coords = roi.getArrayRegion(self.imgLeft.image, self.imgLeft, returnMappedCoords=True)   ## testing
+            # coords is a np.mesh with the coordinates of a
+            #print(coords.shape)   ## testing
             self.ROICurves[i].setData(roicurve)
+            #print(coords)  ## testing
+
+            # PlotItem.viewRange() returns the curent view range in image coordinates
+            #view = self.p3.viewRange()  ## testing
+            #print(view)  ## testing
+
 
     def lineCutsChanged(self):
         for i, lineCut in enumerate(self.lineCuts):
@@ -630,10 +653,11 @@ class CBF(QWidget):
         else:
             self.showData = self.ImageData
 
-        if self.autoColorscale:
-            self.imgLeft.setImage(self.showData, autoLevels=True)
-        else:
-            self.imgLeft.setImage(self.showData, autoLevels=False)
+        # scaling and shifting may be achieved with the rect=[x, y, w, h] kwarg!
+        # self.imgLeft.setRect(x, y, w, h)
+        self.imgLeft.setImage(self.showData, autoLevels=self.autoColorscale)
+        #self.imgLeft.setRect(200, 200, 100, 100)  ## testing
+        
         # self.statusLabel.setText('Updating isoline to %.1f' % self.p.param('Iso Line', 'iso').value())
         # self.progressBar.setMaximum(2)
         # self.progressBar.show()
