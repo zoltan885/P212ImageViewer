@@ -38,7 +38,7 @@ class dataClass():
     def __init__(self, *args):
         self.data = np.zeros((500, 500))
         self.singleTypesFabio = ['cbf', 'tif']
-        self.singleTypesHDF = ['h5', 'hdf', 'nexus']
+        self.singleTypesHDF = ['h5', 'hdf', 'nexus', 'nxs']
         self.multiTypes = ['cbf', 'tif']
         self.eigerDataPath = EIGER2DP
         # here the config would need to be loaded, so that e.g. the default place for data in a nexus file is known

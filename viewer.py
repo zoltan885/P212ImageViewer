@@ -118,7 +118,7 @@ class CBF(QWidget):
 
     def loadEiger2(self):
         d = dataClass()
-        fname = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *nexus)")[0][0]
+        fname = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *.nexus)")[0][0]
         self.progressBar.setMaximum(100)  # this has to be a larger integer
         self.progressBar.show()
         slicing = self.p.param('Actions', 'Slicing').value()
@@ -136,7 +136,7 @@ class CBF(QWidget):
 
     def loadDataFile(self):
         d = dataClass()
-        path = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *nexus)")[0][0]
+        path = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *.nexus *.nxs)")[0][0]
         d.loadFile(path=path)
         self.ImageData = d.data
         self.Images = d.files
