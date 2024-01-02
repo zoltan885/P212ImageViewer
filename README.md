@@ -13,3 +13,7 @@ TODO implement 1d plot of roi values over the image range
 TODO unify load function
 
 TODO range limits do not seem to work after second loading of images!
+
+TODO separate loading process
+
+TODO quick max projection at loading
