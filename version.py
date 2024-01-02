@@ -19,8 +19,8 @@
 
 
 NAME = 'P21.2 ImageViewer'
-VERSION = {'major': 0, 'minor': 4, 'patch': 1}
-YEAR = '2021 - 2023'
+VERSION = {'major': 0, 'minor': 5, 'patch': 0}
+YEAR = '2021 - 2024'
 
 copyrightNotice = "\n\n    %s version %i.%i.%i\n    Copyright (C) Hegedues %s\n\
     This program comes with ABSOLUTELY NO WARRANTY; for details see the LICENSE."\

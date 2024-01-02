@@ -1,4 +1,4 @@
-#!/home/hegedues/anaconda3/envs/pyqtgraph/bin/python3
+#!/home/hegedues/miniforge3/envs/graph/bin/python3
 # -*- coding: utf-8 -*-
 """
     Copyright (C) 2021 Hegedues
@@ -67,7 +67,7 @@ class CBF(QWidget):
         self.knownFileTypes = ['tif', 'cbf']
 
         self.LinePlotActive = False
-        self.roiColors = ("FF0000", (2, 9), (5, 9), (7, 9))  # for several ROIs eventually
+        self.roiColors = ("#FF0000", (2, 9), (5, 9), (7, 9))  # for several ROIs eventually
         self.ROIs = []  # visualization
         self.ROIArea = []  # area used to calculate
         self.ROICurves = []  # 1D curve
@@ -110,11 +110,15 @@ class CBF(QWidget):
         self.progressBar.hide()
         self.statusLabel.setText('%d images loaded' % d.data.shape[0])
         self.ImageData = d.data
+        self.ImageMAX = d.MAX
+        self.ImageAVG = d.AVG
         self.Images = d.files
         self.steps = d.steps
         self.imageRegion.setRegion((0, 1))
         self.imageRegion.setBounds((0, len(self.Images)))
         self.updateRegion()
+        self.autoColorscale = False
+        self.p.param('Data Processing', 'autoColorscale').setValue(False)
 
     def loadEiger2(self):
         d = dataClass()
@@ -125,6 +129,7 @@ class CBF(QWidget):
         d.loadEiger2(fname=fname, slicing=slicing, callback=self.updateProgressBar)
         self.progressBar.hide()
         self.ImageData = d.data
+        # TODO implement MAX and AVG
         self.Images = d.files
         self.steps = d.steps
         self.imageRegion.setRegion((0, 1))
@@ -181,6 +186,7 @@ class CBF(QWidget):
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
                 {'name': 'rangeFilter', 'type': 'list', 'values': ['average', 'max']},
+                {'name': 'fullRange', 'type': 'bool', 'value': False},
                 {'name': 'autoColorscale', 'type': 'bool', 'value': self.autoColorscale},
                 {'name': 'Line plots', 'type': 'list', 'values': ['', 'line cut', 'ROI']},
                 {'name': 'nROI', 'type': 'int', 'value': 1, 'step': 1, 'bounds': (1, 4), 'visible': False},
@@ -217,6 +223,7 @@ class CBF(QWidget):
         #self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)   ## testing
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
+        self.p.param('Data Processing', 'fullRange').sigValueChanged.connect(self.fullRange)
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
         #self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
         self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.updateTree)
@@ -494,7 +501,7 @@ class CBF(QWidget):
         #self.ROIs.append(pg.ROI([x0, y0], [0.1*w, 0.1*h], pen=self.roiColors[n], invertible=True))  ## testing
 
         self.ROIs.append(pg.ROI([100, 100], [100, 100], pen=self.roiColors[n], invertible=True))
-        
+
         self.ROIs[n].addScaleHandle([0.5, 1], [0.5, 0.5])
         self.ROIs[n].addScaleHandle([1, 0.5], [0.5, 0.5])
         self.p3.addItem(self.ROIs[n])
@@ -594,7 +601,16 @@ class CBF(QWidget):
         self.currentFilter = self.p.param('Data Processing', 'rangeFilter').value()
         self.updateRegion()
 
+    def fullRange(self):
+        self.fullRange = self.p.param('Data Processing', 'fullRange').value()
+        #self.imageRegion.setRegion((0, self.ImageData.shape[0])) # TODO remember the earlier setting!!!
+        self.updateTree()
+        self.updateRegion()
+
     def updateTree(self):
+        if self.p.param('Data Processing', 'fullRange').value():
+            pass
+            #TODO disable range slider
         if self.p.param('Iso Line', 'show').value():
             self.p.param('Iso Line', 'iso').show()
         else:
@@ -616,8 +632,12 @@ class CBF(QWidget):
         '''
         this takes care of the linearRegionItems bounds and the labels
         '''
-        fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
-        toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
+        if self.p.param('Data Processing', 'fullRange').value():
+            fromImage = 0
+            toImage = self.ImageData.shape[0]
+        else:
+            fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
+            toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
         #print('from %d to %d' %(fromImage, toImage))
         self.currentImage = (fromImage, toImage)
         if fromImage == toImage-1:
@@ -643,11 +663,14 @@ class CBF(QWidget):
 
         self.updateImageRegion()
 
-        fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
-        toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
-
         if len(self.ImageData.shape) == 3 and len(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :]) > 0:
-            self.showData = self.filterImages(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :])
+            if self.currentImage[0] == 0 and self.currentImage[1] == self.ImageData.shape[0]:
+                if self.currentFilter == 'average':
+                    self.showData = self.ImageAVG
+                if self.currentFilter == 'max':
+                    self.showData = self.ImageMAX
+            else:
+                self.showData = self.filterImages(self.ImageData[self.currentImage[0]:self.currentImage[1], :, :])
             self.showData = self.maskValsAbove(self.showData)
             self.showData = self.prepFinalImage(self.showData)
         else:
@@ -657,7 +680,7 @@ class CBF(QWidget):
         # self.imgLeft.setRect(x, y, w, h)
         self.imgLeft.setImage(self.showData, autoLevels=self.autoColorscale)
         #self.imgLeft.setRect(200, 200, 100, 100)  ## testing
-        
+
         # self.statusLabel.setText('Updating isoline to %.1f' % self.p.param('Iso Line', 'iso').value())
         # self.progressBar.setMaximum(2)
         # self.progressBar.show()

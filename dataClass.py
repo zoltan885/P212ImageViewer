@@ -32,6 +32,19 @@ import time
 
 from settings import *
 
+from multiprocessing import Process, Queue
+from threading import Timer
+
+
+
+
+def loader(filelist, queue):
+    for f in filelist:
+        queue.put(np.flipud(fabio.open(f).data))
+
+def loadingprogress():
+    pass
+
 
 
 class dataClass():
@@ -41,6 +54,11 @@ class dataClass():
         self.singleTypesHDF = ['h5', 'hdf', 'nexus', 'nxs']
         self.multiTypes = ['cbf', 'tif']
         self.eigerDataPath = EIGER2DP
+        self.queue = Queue()
+        self.timer = Timer(0.1, loadingprogress)
+        self.useproc = False
+        self.MAX = None
+        self.AVG = None
         # here the config would need to be loaded, so that e.g. the default place for data in a nexus file is known
 
     def loadFile(self, path=None):
@@ -105,10 +123,27 @@ class dataClass():
                     print('Slicing not understood')
             xSize, ySize = fabio.open(files[0]).data.shape
             self.data = np.zeros([len(files), xSize, ySize])
-            for i, fn in enumerate(files):
-                if callback is not None:
-                    callback(float(i+1)/len(files))
-                self.data[i, :, :] = np.flipud(fabio.open(fn).data)
+            if self.useproc: # TODO
+
+                ctr = 0
+                while ctr < len(files):
+                    if self.queue.not_empty():
+                        self.data[ctr, :, :] = self.queue.get()
+                        ctr += 1
+
+
+            else:
+                for i, fn in enumerate(files):
+                    if callback is not None:
+                        callback(float(i+1)/len(files))
+                    self.data[i, :, :] = np.flipud(fabio.open(fn).data)
+                    if i == 0:
+                        self.MAX = np.zeros(self.data[0].shape)
+                    np.maximum(self.MAX, self.data[i], out=self.MAX)  #supposed to be more memory efficient than an assignment
+                    if i == 0:
+                        self.AVG = self.data[0]
+                    else:
+                        self.AVG = (self.AVG*(i) + self.data[i])/(i+1)
         self.steps = 1
         if slicing is not None:
             self.steps = int(slicing.rpartition(':')[2])
