@@ -43,8 +43,20 @@ from settings import baseFolder
 from dataClass import dataClass
 
 
+import logging
+logFormatter = logging.Formatter("%(asctime)-25.25s %(threadName)-12.12s %(name)-25.24s %(levelname)-10.10s %(message)s")
+rootLogger = logging.getLogger()
+rootLogger.setLevel(logging.DEBUG)
+#logging.getLogger().setLevel(logging.DEBUG)
+fileHandler = logging.FileHandler(os.path.join(os.getcwd(), 'log.log'))
+fileHandler.setFormatter(logFormatter)
+rootLogger.addHandler(fileHandler)
 
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+rootLogger.addHandler(consoleHandler)
 
+logging.debug('Program started')
 
 class Data():
     def __init__(self, *args):
@@ -82,6 +94,7 @@ class CBF(QWidget):
         #        DEB = True
         #if DEB:
         #    self.loadFolder(folder='/home/zoltan/Documents/code_snippets/multisource/1')
+        logging.debug('GUI initialized')
 
     def _checkSize(self, filelist, maxOccupation=0.8):
         size = np.sum([os.path.getsize(f) for f in filelist])
@@ -101,8 +114,12 @@ class CBF(QWidget):
 
 
     def loadDataFolder(self):
+        logging.debug('Loading folder dialog opened')
         d = dataClass()
         path = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
+        logging.debug('Loading folder dialog closed')
+        t0 = time.time()
+        logging.debug('Loading folder...')
         self.progressBar.setMaximum(100)  # this has to be a larger integer
         self.progressBar.show()
         slicing = self.p.param('Actions', 'Slicing').value()
@@ -119,6 +136,7 @@ class CBF(QWidget):
         self.updateRegion()
         self.autoColorscale = False
         self.p.param('Data Processing', 'autoColorscale').setValue(False)
+        logging.debug(f'Loading {d.data.shape[0]} images took: {time.time()-t0:.3f} s')
 
     def loadEiger2(self):
         d = dataClass()
@@ -257,7 +275,9 @@ class CBF(QWidget):
         self.win.nextRow()
         self.p2 = self.win.addPlot(row=3, colspan=3)
         self.imageRegion = pg.LinearRegionItem(bounds=[0, None], swapMode='push')
-        self.imageRegion.sigRegionChanged.connect(self.updateRegion)
+
+        #self.imageRegion.sigRegionChanged.connect(self.updateRegion)
+        self.imageRegion.sigRegionChangeFinished.connect(self.updateRegion)  # this only updates when the change has been finished
 
         self.p2.setMaximumHeight(80)
         self.p2.addItem(self.imageRegion)
@@ -319,16 +339,17 @@ class CBF(QWidget):
             j = int(np.clip(j, 0, self.ImageData.shape[1] - 1))
         val = self.showData[i, j]
         # self.p3.setTitle("pixel: (%d, %d), value: %.1f" % (i, j, val))
-        self.LabelL.setText("pixel: (%d, %d), value: %.1f" % (i, j, val))
+        self.LabelL.setText("pixel: (%d, %d), value: %.1f" % (j, i, val))
 
     def ROIHoverEvent(self, event):
         if event.isExit():
             self.LabelR.setText('')
         else:
             pos = event.pos()
-            mappedPos = self.roiPlot.vb.mapSceneToView(pos)
+            #mappedPos = self.roiPlot.vb.mapSceneToView(pos) # TODO y is not correct
+            mappedPos = self.roiPlot.vb.mapToView(pos)
             x, y = mappedPos.x(), mappedPos.y()
-            self.LabelR.setText('%.1f %.1f' % (x, y))
+            self.LabelR.setText('%.1f     %.4g' % (x, y))
 
     def prepImages(self):
         '''
@@ -419,11 +440,15 @@ class CBF(QWidget):
         max or average filtering of an image range
         ims is the array of images to filter
         '''
+        logging.debug('func: filterImages')
+        t0 = time.time()
         if self.currentFilter == 'average':
             filteredData = np.mean(ims, axis=0)
         elif self.currentFilter == 'max':
             #filteredData = np.maximum.reduce(ims, axis=0)
             filteredData = np.amax(ims, axis=0)  # the two seems to be equivalent, and same speed
+        self.statusLabel.setText('')
+        logging.debug(f'filterImages took {time.time()-t0:.3f} s')
         return filteredData
 
     def show1DPlotWindow(self):
@@ -651,6 +676,8 @@ class CBF(QWidget):
 
 
     def updateRegion(self):
+        logging.debug('func: udpateRegion')
+        t0 = time.time()
         self.imgLeft.show()
         self.imageRegion.setBounds = ([0, self.ImageData.shape[0]])
         self.imgLeft.resetTransform()
@@ -681,23 +708,30 @@ class CBF(QWidget):
         self.imgLeft.setImage(self.showData, autoLevels=self.autoColorscale)
         #self.imgLeft.setRect(200, 200, 100, 100)  ## testing
 
-        # self.statusLabel.setText('Updating isoline to %.1f' % self.p.param('Iso Line', 'iso').value())
-        # self.progressBar.setMaximum(2)
-        # self.progressBar.show()
-        # self.progressBar.setValue(1)
+        self.statusLabel.setText('Updating isoline to %.1f' % self.p.param('Iso Line', 'iso').value())
+        #self.progressBar.setMaximum(2)
+        #self.progressBar.show()
+        #self.progressBar.setValue(1)
         if self.p.param('Iso Line', 'show').value():
             self.iso.setLevel(self.p.param('Iso Line', 'iso').value())
             # self.iso.setData(pg.gaussianFilter(self.showData, (2, 2)))
             self.iso.setData(scipy.ndimage.gaussian_filter(self.showData, (2, 2)))
         else:
             self.iso.setData(None)
+        self.statusLabel.setText('Ready')
 
         self.lineCutsChanged()
         self.ROIChanged()
-        # self.progressBar.hide()
+        #self.progressBar.hide()
+        logging.debug(f'updateRegion took: {time.time()-t0:.3f} s')
 
+
+
+def exitHandler():
+    logging.debug('Image viewer closed\n\n\n')
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ex = CBF(sys.argv)
+    main = CBF(sys.argv)
+    app.aboutToQuit.connect(exitHandler)
     sys.exit(app.exec_())
