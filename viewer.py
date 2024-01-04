@@ -88,9 +88,10 @@ class CBF(QWidget):
         self.lineCutsCurves = []
 
         self.fullRange = False
-        self.lastRange = ()
+        self.lastRange = (0, 1)
 
         pg.setConfigOptions(imageAxisOrder='row-major')
+        pg.setConfigOptions(useNumba=False)
         self.initUI()
         #if len(args[0]) > 1:
         #    if args[0][1] == '-D':
@@ -112,9 +113,9 @@ class CBF(QWidget):
         return True
 
     def updateGUIAfterLoading(self):
-        self.imageRegion.setRegion((0, 1))  # TODO this should not be in the load function!
-        self.imageRegion.setBounds((0, len(self.Images)))  # TODO this should not be in the load function!
-        self.p.param('Data Processing', 'imageNo').setOpts(bounds=(0, len(self.Images)))  # TODO this should not be in the load function!
+        self.imageRegion.setRegion((0, 1))
+        self.imageRegion.setBounds((0, len(self.Images)))
+        self.p.param('Data Processing', 'imageNo').setOpts(bounds=(0, len(self.Images)))
         self.updateRegion()
         self.autoColorscale = False
         self.p.param('Data Processing', 'autoColorscale').setValue(False)
@@ -130,7 +131,7 @@ class CBF(QWidget):
         path = QFileDialog.getExistingDirectory(self, "Select a folder to load", baseFolder, QFileDialog.ShowDirsOnly)
         logging.debug('Loading folder dialog closed')
         t0 = time.time()
-        logging.debug('Loading folder...')
+        logging.debug(f'Loading folder {path}')
         self.progressBar.setMaximum(100)  # this has to be a larger integer
         self.progressBar.show()
         slicing = self.p.param('Actions', 'Slicing').value()
@@ -143,7 +144,8 @@ class CBF(QWidget):
         self.Images = d.files
         self.steps = d.steps
         self.updateGUIAfterLoading()
-        logging.debug(f'Loading {d.data.shape[0]} images took: {time.time()-t0:.3f} s')
+        logging.debug(f'Loading {d.data.shape[0]} images took: {time.time()-t0:.3f} s (avg: {1000*(time.time()-t0)/d.data.shape[0]:.1f} ms)')
+
 
     def loadEiger2(self):
         d = dataClass()
@@ -568,7 +570,7 @@ class CBF(QWidget):
         TODO: This would need a refractoring!!!
         '''
         activeRegions = max(len(self.ROIs), len(self.lineCuts))
-        if self.p.param('Data Processing', 'Line plots').value() != 'None':
+        if self.p.param('Data Processing', 'Line plots').value() != '':
             self.show1DPlotWindow()
         else:
             self.hide1DPlotWindow()
@@ -640,13 +642,9 @@ class CBF(QWidget):
             self.imageRegion.setRegion((0, self.ImageData.shape[0]))
         else:
             self.imageRegion.setRegion((self.lastRange[0], self.lastRange[1]))
-        self.updateTree()
         self.updateRegion()
 
     def updateTree(self):
-        if self.p.param('Data Processing', 'fullRange').value():
-            pass
-            #TODO disable range slider
         if self.p.param('Iso Line', 'show').value():
             self.p.param('Iso Line', 'iso').show()
         else:
@@ -678,6 +676,16 @@ class CBF(QWidget):
         else:
             fromImage = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
             toImage = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
+
+        # range should be larger than 1:
+        #if fromImage == self.lastRange[0] and toImage != self.lastRange[1]:  # upper bound moved
+        #    toImage = max(fromImage + 1, toImage)
+        #elif fromImage != self.lastRange[0] and toImage == self.lastRange[1]:  # lower bound moved
+        #    fromImage = min(toImage-1, fromImage)
+        #else:  # both moved together
+        #    pass
+        #self.imageRegion.setBounds = ([fromImage, toImage])  # does not seem to work
+
         #print('from %d to %d' %(fromImage, toImage))
         self.currentImage = (fromImage, toImage)
         if fromImage == toImage-1:
@@ -688,6 +696,7 @@ class CBF(QWidget):
             elif self.currentFilter == 'max':
                 self.LabelL.setText("Max of images: %i:%i" % (fromImage*self.steps, toImage*self.steps))
 
+        #self.lastRange = (fromImage, toImage)  # compromises the fullRange feature
 
 
     def updateRegion(self):
