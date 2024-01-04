@@ -91,7 +91,7 @@ class CBF(QWidget):
         self.lastRange = (0, 1)
 
         pg.setConfigOptions(imageAxisOrder='row-major')
-        pg.setConfigOptions(useNumba=False)
+        #pg.setConfigOptions(useNumba=False)  # this does not work in earlier pyqtgraph versions
         self.initUI()
         #if len(args[0]) > 1:
         #    if args[0][1] == '-D':
