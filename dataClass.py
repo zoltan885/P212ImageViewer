@@ -30,7 +30,7 @@ import scipy.ndimage
 #from numba import jit
 import time
 
-from settings import *
+from settings import EIGER2DP
 
 from multiprocessing import Process, Queue
 from threading import Timer
@@ -169,12 +169,13 @@ class dataClass():
         # mask2 = np.where(self.E2Mask == 1)
 
         for k in f[self.eigerDataPath].keys():  # should there be more than one datafile
-            path = self.eigerDataPath + k
-            noIms += f[path].shape[0]
+            path = self.eigerDataPath + '/' + k
+            noIms = f[path].shape[0]
             for i in range(noIms):
                 images.append((self.eigerDataPath+k, i))
             imShape = f[path].shape[1:]
-        #print(imShape)
+        for i in images:
+            print(i)
         if slicing is not None:
             try:
                 images = eval('images[%s]' % slicing)
@@ -185,6 +186,13 @@ class dataClass():
             if callback is not None:
                 callback(float(i+1)/len(images))
             self.data[i, :, :] = np.flipud(f[img[0]][img[1]]).astype('int32')
+            if i == 0:
+                self.MAX = np.zeros(self.data[0].shape)
+            np.maximum(self.MAX, self.data[i], out=self.MAX)  #supposed to be more memory efficient than an assignment
+            if i == 0:
+                self.AVG = self.data[0]
+            else:
+                self.AVG = (self.AVG*(i) + self.data[i])/(i+1)
         self.steps = 1
         if slicing is not None:
             self.steps = int(slicing.rpartition(':')[2])

@@ -87,6 +87,9 @@ class CBF(QWidget):
         self.lineCutsArea = []
         self.lineCutsCurves = []
 
+        self.fullRange = False
+        self.lastRange = ()
+
         pg.setConfigOptions(imageAxisOrder='row-major')
         self.initUI()
         #if len(args[0]) > 1:
@@ -107,6 +110,14 @@ class CBF(QWidget):
             msgBox.exec()
             return False
         return True
+
+    def updateGUIAfterLoading(self):
+        self.imageRegion.setRegion((0, 1))  # TODO this should not be in the load function!
+        self.imageRegion.setBounds((0, len(self.Images)))  # TODO this should not be in the load function!
+        self.p.param('Data Processing', 'imageNo').setOpts(bounds=(0, len(self.Images)))  # TODO this should not be in the load function!
+        self.updateRegion()
+        self.autoColorscale = False
+        self.p.param('Data Processing', 'autoColorscale').setValue(False)
 
 
     def updateProgressBar(self, r):
@@ -131,29 +142,23 @@ class CBF(QWidget):
         self.ImageAVG = d.AVG
         self.Images = d.files
         self.steps = d.steps
-        self.imageRegion.setRegion((0, 1))
-        self.imageRegion.setBounds((0, len(self.Images)))
-        self.updateRegion()
-        self.autoColorscale = False
-        self.p.param('Data Processing', 'autoColorscale').setValue(False)
+        self.updateGUIAfterLoading()
         logging.debug(f'Loading {d.data.shape[0]} images took: {time.time()-t0:.3f} s')
 
     def loadEiger2(self):
         d = dataClass()
-        fname = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.cbf *.tif *.h5 *.nexus)")[0][0]
+        fname = QFileDialog.getOpenFileNames(self, "Open file", baseFolder, "Image Files (*.h5 *.nexus)")[0][0]
         self.progressBar.setMaximum(100)  # this has to be a larger integer
         self.progressBar.show()
         slicing = self.p.param('Actions', 'Slicing').value()
         d.loadEiger2(fname=fname, slicing=slicing, callback=self.updateProgressBar)
         self.progressBar.hide()
         self.ImageData = d.data
-        # TODO implement MAX and AVG
+        self.ImageMAX = d.MAX
+        self.ImageAVG = d.AVG
         self.Images = d.files
         self.steps = d.steps
-        self.imageRegion.setRegion((0, 1))
-        #print(self.Images)
-        #print(self.imageRegion.bounds)
-        self.imageRegion.setBounds((0, len(self.Images)))
+        self.updateGUIAfterLoading()
         self.updateRegion()
 
 
@@ -189,7 +194,7 @@ class CBF(QWidget):
                 {'name': 'LoadDataFolder', 'type': 'action'},
                 {'name': 'LoadDataFile', 'type': 'action'},
                 {'name': 'Load Eiger2', 'type': 'action'},
-                #{'name': 'Load Image', 'type': 'action'},
+                #{'name': 'Load', 'type': 'action'},
                 #{'name': 'Load Folder', 'type': 'action'},
                 #{'name': 'Load Folder Mem', 'type': 'action'},
                 #{'name': 'Load Folder WD', 'type': 'action'},
@@ -199,7 +204,7 @@ class CBF(QWidget):
                 # {'name': 'Mask Image', 'type': 'action'},
             ]},
             {'name': 'Data Processing', 'type': 'group', 'children': [
-                {'name': 'imageNo', 'type': 'int', 'value': 0, 'step': 1, 'bounds': (0, 0)},
+                {'name': 'imageNo', 'type': 'int', 'value': 0, 'step': 1, 'bounds': (0, None)},
                 {'name': 'iOrient', 'type': 'list', 'values': ['none', 'flipUD', 'flipLR', 'transpose', 'rot90', 'rot180', 'rot270', 'rot180 + tr']},
                 {'name': 'maskValsAbove', 'type': 'float', 'value': 0, 'step': 100.},
 
@@ -232,7 +237,7 @@ class CBF(QWidget):
         self.p.param('Actions', 'LoadDataFolder').sigActivated.connect(self.loadDataFolder)
         self.p.param('Actions', 'LoadDataFile').sigActivated.connect(self.loadDataFile)
         self.p.param('Actions', 'Load Eiger2').sigActivated.connect(self.loadEiger2)
-        #self.p.param('Actions', 'Load Image').sigActivated.connect(self.loadImage)
+        #self.p.param('Actions', 'Load').sigActivated.connect(self.load)
         #self.p.param('Actions', 'Load Folder').sigActivated.connect(self.loadFolder)
         #self.p.param('Actions', 'Load Folder Mem').sigActivated.connect(self.loadFolderMapped)
         #self.p.param('Actions', 'Load Folder WD').sigActivated.connect(self.loadFolderWithDark)
@@ -241,7 +246,7 @@ class CBF(QWidget):
         #self.p.param('Data Processing', 'iOrient').sigValueChanged.connect(self.updateRegion)   ## testing
         self.p.param('Data Processing', 'maskValsAbove').sigValueChanged.connect(self.updateRegion)
         self.p.param('Data Processing', 'rangeFilter').sigValueChanged.connect(self.changeFilter)
-        self.p.param('Data Processing', 'fullRange').sigValueChanged.connect(self.fullRange)
+        self.p.param('Data Processing', 'fullRange').sigValueChanged.connect(self.fullRangeToggle)
         self.p.param('Data Processing', 'autoColorscale').sigValueChanged.connect(self.changeAutocolorscale)
         #self.p.param('Data Processing', 'roi').sigValueChanged.connect(self.showROI)
         self.p.param('Data Processing', 'Line plots').sigStateChanged.connect(self.updateTree)
@@ -626,9 +631,15 @@ class CBF(QWidget):
         self.currentFilter = self.p.param('Data Processing', 'rangeFilter').value()
         self.updateRegion()
 
-    def fullRange(self):
+    def fullRangeToggle(self):
+        mi = min(int(np.round(self.imageRegion.getRegion()[0])), self.ImageData.shape[0])
+        ma = min(int(np.round(self.imageRegion.getRegion()[1])), self.ImageData.shape[0])
         self.fullRange = self.p.param('Data Processing', 'fullRange').value()
-        #self.imageRegion.setRegion((0, self.ImageData.shape[0])) # TODO remember the earlier setting!!!
+        if self.fullRange:
+            self.lastRange = (mi, ma)
+            self.imageRegion.setRegion((0, self.ImageData.shape[0]))
+        else:
+            self.imageRegion.setRegion((self.lastRange[0], self.lastRange[1]))
         self.updateTree()
         self.updateRegion()
 
@@ -649,8 +660,12 @@ class CBF(QWidget):
         self.updateRegion()
 
     def changeImageNo(self):
+        logging.debug('func: changeImageNo')
         i = self.p.param('Data Processing', 'imageNo').value()
-        self.imageRegion.setRegion((max(0, i-0.5), min(i+0.5, len(self.Images))))
+        mi = max(0, min(i, self.ImageData.shape[0]-1))
+        ma = mi+1
+        self.imageRegion.setRegion((mi, ma))
+        logging.debug(f'imageregion set to [{mi:.1f}:{ma:.1f}]')
         self.updateRegion()
 
     def updateImageRegion(self):
